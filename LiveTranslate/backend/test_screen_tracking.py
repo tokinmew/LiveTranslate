@@ -80,6 +80,26 @@ class ScreenTrackingTests(unittest.TestCase):
                 self.frame(panel(), old)
                 self.assertEqual(new,self.frame(panel(fg=24,bg=230), new)[0][0][0])
 
+    def test_distinct_han_number_groups_do_not_reuse_a_previous_label(self):
+        for language in ("han", "zh", "zt", "ja"):
+            with self.subTest(language=language):
+                self.tracker = ScreenTracker()
+                self.frame(panel(), "二 十", lang=language)
+                image = panel()
+                ImageDraw.Draw(image).rectangle((21, 17, 31, 22), fill="white")
+                placed, _ = self.frame(image, "二十", lang=language)
+                self.assertEqual([("二十", BOX)], placed)
+
+    def test_an_appended_word_beyond_the_old_patch_updates_immediately(self):
+        image = panel()
+        self.frame(image, "今日は")
+        # The original lettering and its surrounding margin stay untouched.
+        # The next word is inside the expanded OCR box, outside the old patch.
+        ImageDraw.Draw(image).rectangle((83, 15, 87, 27), fill="white")
+        expanded = BOX[0], BOX[1], 89, BOX[3]
+        placed, _ = self.frame(image, "今日は休み", (expanded,))
+        self.assertEqual([("今日は休み", expanded)], placed)
+
     def test_one_missed_frame_retains_unmodified_appearance_and_then_expires(self):
         image = panel()
         self.frame(image, "設定", colors=12345)

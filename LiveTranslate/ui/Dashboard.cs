@@ -131,7 +131,7 @@ namespace LiveTranslate
                 UseVisualStyleBackColor = false
             };
             button.FlatAppearance.BorderSize = 1;
-            button.FlatAppearance.BorderColor = primary ? accent : Color.FromArgb(92, 100, 126);
+            button.FlatAppearance.BorderColor = primary ? accent : Color.FromArgb(80, 111, 111);
             button.Click += action;
             return button;
         }
@@ -141,7 +141,7 @@ namespace LiveTranslate
             Button button = MakeButton(text, action, false);
             button.BackColor = Color.White;
             button.ForeColor = paperInk;
-            button.FlatAppearance.BorderColor = Color.FromArgb(173, 181, 201);
+            button.FlatAppearance.BorderColor = Color.FromArgb(177, 199, 191);
             button.Font = new Font("Segoe UI", 9F);
             button.Height = 28;
             return button;
@@ -210,8 +210,8 @@ namespace LiveTranslate
                 if (state == "Ready" && i == 2 && !ScreenModelsReady()) state = "Set up";
                 if (state == "Ready" && i == 1 && (!SpeechModelSupportsSelection() || !speechModels.Contains(Convert.ToString(audioModel.SelectedItem)))) state = "Set up";
                 string mode = LanguagePicker.Modes[i];
-                modeStates[i].Text = mode + " " + (state == "Ready" ? "ready" : state == "Set up" ? "setup" : state == "Unsupported" ? "n/a" : "…");
-                modeStates[i].ForeColor = state == "Ready" ? Color.FromArgb(156, 224, 207) : muted;
+                modeStates[i].Text = mode + (state == "Ready" ? " ready" : state == "Set up" ? " setup" : state == "Unsupported" ? " n/a" : "");
+                ((AvailabilityIndicator)modeStates[i]).SetState(state);
                 modeStates[i].AccessibleName = mode + " " + state;
                 string provider = i == 2 && info != null ? Value(info, "ocr_provider") : "";
                 dashboardTips.SetToolTip(modeStates[i], mode + " • " + state + (provider.Length == 0 ? "" : " • " + provider));
@@ -244,12 +244,19 @@ namespace LiveTranslate
             bool runtimeReady = connected || RuntimeReady();
             bool usable = connected && !setup && !profileBusy;
             pickLanguage.Enabled = profileSelector.Enabled = !setup && !profileBusy;
-            audioToggle.Enabled = usable && (audioWanted || (devices.SelectedIndex >= 0 && SpeechModelSupportsSelection()));
+            audioToggle.Enabled = usable && devicesReady && (audioWanted || (devices.SelectedIndex >= 0 && SpeechModelSupportsSelection()));
             // A user can disarm automatic capture before the runtime or its models are ready.
             screenToggle.Enabled = !closing;
             SetSwitch(screenToggle, screenArmed);
-            devices.Enabled = usable;
-            readOnce.Enabled = usable && !oneShotPending && ScreenModelsReady();
+            if (screenRegionRow != null)
+                screenRegionRow.ColumnStyles[1].Width = ProfileCode() == "ja" ? Math.Max(85, japaneseDirection.PreferredHeight * 3.8F) : 0;
+            devices.Enabled = usable && devicesReady;
+            if (audioDeviceHint != null) {
+                audioDeviceHint.Visible = !devicesReady || devices.Items.Count == 0;
+                audioDeviceHint.Text = connected && devicesReady ? "No audio devices available" : "Waiting for audio devices";
+            }
+            UpdateTranslateAction();
+            readOnce.Enabled = usable && !oneShotPending && ScreenModelsReady() && !CaptureBounds().IsEmpty;
             readOnce.Text = oneShotPending ? "Reading..." : "Read once";
             selectArea.Enabled = !setup && !profileBusy;
             setupProfile.Enabled = !setup && !profileBusy;
@@ -261,6 +268,7 @@ namespace LiveTranslate
                 button.Enabled = usable && !capture;
             setupAll.Text = setup ? "Installing..." : profileBusy ? "Downloading..." : "Set up starter languages";
             engineBadge.Text = setup ? "Preparing components" : connected ? "Local engine ready" : runtimeReady ? "Connecting to engine" : "Setup needed";
+            ((EngineIndicator)engineBadge).Ready = connected && !setup;
             RefreshReadiness();
             EmptyTranscript waiting = emptyOutput as EmptyTranscript;
             if (waiting != null)
@@ -272,9 +280,11 @@ namespace LiveTranslate
             }
             if (!connected && !setup)
             {
-                audioStateLabel.Text = "Off. Set up a language to enable listening.";
-                screenStateLabel.Text = screenArmed ? "Waiting for setup. Watching starts automatically." : "Paused.";
+                audioStateLabel.Text = runtimeReady ? "Off. Waiting for the local engine." : "Off. Set up a language to enable listening.";
+                screenStateLabel.Text = !screenArmed ? "Paused." : runtimeReady ? "Waiting for the local engine. Watching will resume automatically." : "Waiting for setup. Watching starts automatically.";
             }
+            else if (connected && !devicesReady)
+                audioStateLabel.Text = "Checking available audio devices...";
             else if (connected && devices.Items.Count == 0 && !audioWanted)
                 audioStateLabel.Text = "No audio devices found. Refresh sources in Settings.";
         }
@@ -339,12 +349,32 @@ namespace LiveTranslate
             }
         }
 
+        private string[] initialSpeechSettings, initialScreenSettings;
+        private string[] SpeechSettingsValues()
+        {
+            return new[] { audioModel.Text, koreanDialogue.Text, audioLanguage.Text.Trim(), chunks.Value.ToString(), threads.Value.ToString() };
+        }
+
+        private string[] ScreenSettingsValues()
+        {
+            return new[] { ocrLanguage.Text.Trim(), tesseractPath.Text.Trim(), SelectedCode(customTextSource) };
+        }
+
+        private void RememberProcessingSettings()
+        {
+            initialSpeechSettings = SpeechSettingsValues();
+            initialScreenSettings = ScreenSettingsValues();
+        }
+
         private void OpenSettings()
         {
             if (settingsForm == null || settingsForm.IsDisposed)
                 return;
             if (!settingsForm.Visible)
+            {
+                RememberProcessingSettings();
                 settingsForm.Show(this);
+            }
             else
                 settingsForm.BringToFront();
         }
@@ -353,12 +383,14 @@ namespace LiveTranslate
         {
             settingsForm = new Form
             {
-                Text = "Live Translate - Settings",
-                Size = new Size(740, 650),
-                MinimumSize = new Size(650, 570),
+                Text = "Live Translate – Settings",
+                Size = new Size(756, 750),
+                MinimumSize = new Size(562, 420),
                 StartPosition = FormStartPosition.CenterParent,
-                BackColor = surface,
-                ForeColor = ink,
+                AutoScaleDimensions = new SizeF(96, 96),
+                AutoScaleMode = AutoScaleMode.Dpi,
+                BackColor = background,
+                ForeColor = paperInk,
                 Font = Font,
                 ShowInTaskbar = false
             };
@@ -367,33 +399,26 @@ namespace LiveTranslate
                 if (!closing && e.CloseReason == CloseReason.UserClosing)
                 {
                     e.Cancel = true;
-                    settingsForm.Hide();
+                    ApplySettings();
                 }
             };
-            TableLayoutPanel main = Rows(43, 0, 44);
-            main.Padding = new Padding(17);
-            Label title = Note("Translation settings", ink);
-            title.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
+            settingsForm.Load += delegate { FitToDisplay(settingsForm); };
+            TableLayoutPanel main = Rows(66, 0, 49);
+            main.Padding = new Padding(14, 0, 14, 4);
+            Label title = Note("Settings", paperInk);
+            title.Font = new Font(Font.FontFamily, 21F, FontStyle.Bold);
+            title.Padding = new Padding(5, 0, 0, 0);
             main.Controls.Add(title, 0, 0);
             settingsForm.Controls.Add(main);
             settingsTabs = new TabControl
             {
                 Dock = DockStyle.Fill,
-                Padding = new Point(14, 7),
-                Margin = new Padding(0, 0, 0, 9)
+                Padding = new Point(10, 7),
+                AccessibleName = "Settings sections",
+                Margin = Padding.Empty
             };
-            TabPage processing = new TabPage("Audio and screen")
-            {
-                BackColor = surface,
-                Padding = new Padding(13),
-                AutoScroll = true
-            };
-            TabPage files = new TabPage("Language files")
-            {
-                BackColor = surface,
-                Padding = new Padding(13),
-                AutoScroll = true
-            };
+            TabPage processing = SettingsPage("Audio and screen");
+            TabPage files = SettingsPage("Language files");
             settingsTabs.TabPages.Add(processing);
             settingsTabs.TabPages.Add(files);
             main.Controls.Add(settingsTabs, 0, 1);
@@ -401,20 +426,21 @@ namespace LiveTranslate
             {
                 Dock = DockStyle.Top,
                 ColumnCount = 2,
-                RowCount = 10,
-                Height = 443,
+                RowCount = 13,
+                Height = 448,
                 Margin = new Padding(0)
             };
-            controls.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 185));
+            controls.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 159));
             controls.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            for (int i = 0; i < 9; i++)
-                controls.RowStyles.Add(new RowStyle(SizeType.Absolute, 39));
-            controls.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            processing.Controls.Add(controls);
+            foreach (int height in new[] { 25, 35, 35, 35, 35, 39, 29, 35, 35, 39, 50, 25, 31 })
+                controls.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+            SettingSection(controls, 0, "Speech input");
+            SettingSection(controls, 6, "Text and screen");
+            SettingSection(controls, 11, "Dashboard");
             audioModel = Combo();
             audioModel.Items.AddRange(new object[] { "base", "small", "medium" });
             audioModel.SelectedIndex = 0;
-            AddSetting(controls, 0, "Speech model", audioModel);
+            AddSetting(controls, 1, "Speech model", audioModel);
             bool offersDialogue = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DialogueInstaller));
             koreanDialogue = Combo();
             koreanDialogue.Items.Add("Standard");
@@ -433,9 +459,9 @@ namespace LiveTranslate
                 if (koreanDialogue.SelectedIndex == 1 && !Object.Equals(audioModel.SelectedItem, "small"))
                     koreanDialogue.SelectedIndex = 0;
             };
-            AddSetting(controls, 1, "Korean dialogue", koreanDialogue);
+            AddSetting(controls, 2, "Korean dialogue", koreanDialogue);
             audioLanguage = Entry("auto");
-            AddSetting(controls, 2, "Speech language code", audioLanguage);
+            AddSetting(controls, 3, "Speech language code", audioLanguage);
             FlowLayoutPanel tuning = Flow();
             chunks = new NumericUpDown
             {
@@ -458,15 +484,17 @@ namespace LiveTranslate
             tuning.Controls.Add(chunks);
             tuning.Controls.Add(new Label { Text = "sec / phrase", AutoSize = true, ForeColor = muted, Margin = new Padding(4, 5, 15, 0) });
             tuning.Controls.Add(threads);
+            chunks.AccessibleName = "Seconds per speech phrase";
+            threads.AccessibleName = "Speech recognition CPU threads";
             tuning.Controls.Add(new Label { Text = "CPU threads", AutoSize = true, ForeColor = muted, Margin = new Padding(4, 5, 0, 0) });
-            AddSetting(controls, 3, "Performance", tuning);
+            AddSetting(controls, 4, "Performance", tuning);
             customTextSource = Combo();
             AddPriorityChoices(customTextSource, false);
             customTextSource.Items.Add(new Choice("en", "English"));
             customTextSource.SelectedIndex = 0;
-            AddSetting(controls, 4, "Custom text source", customTextSource);
+            AddSetting(controls, 7, "Custom text source", customTextSource);
             ocrLanguage = Entry("");
-            AddSetting(controls, 5, "OCR language code", ocrLanguage);
+            AddSetting(controls, 8, "OCR language code", ocrLanguage);
             tesseractPath = Entry("");
             TableLayoutPanel path = Columns(0, 85);
             path.Controls.Add(tesseractPath, 0, 0);
@@ -487,7 +515,8 @@ namespace LiveTranslate
             browse.Dock = DockStyle.Fill;
             browse.Margin = new Padding(6, 0, 0, 5);
             path.Controls.Add(browse, 1, 0);
-            AddSetting(controls, 6, "External OCR (optional)", path);
+            tesseractPath.AccessibleName = "Optional external OCR executable";
+            AddSetting(controls, 9, "External OCR (optional)", path);
             FlowLayoutPanel deviceActions = Flow();
             Button refresh = MakeButton("Refresh audio sources", delegate
             {
@@ -495,21 +524,19 @@ namespace LiveTranslate
             }, false);
             refresh.Width = 185;
             deviceActions.Controls.Add(refresh);
-            AddSetting(controls, 7, "Audio devices", deviceActions);
+            AddSetting(controls, 5, "Audio devices", deviceActions);
             CheckBox keepMainOnTop = new CheckBox
             {
                 Text = "Keep the dashboard on top",
                 ForeColor = ink, AutoSize = true, Dock = DockStyle.Left
             };
             keepMainOnTop.CheckedChanged += delegate { TopMost = keepMainOnTop.Checked; };
-            AddSetting(controls, 8, "Window", keepMainOnTop);
-            Label tip = Note("Automatic screen capture watches Chinese, Korean and Japanese. Choose a source language for other scripts. Japanese also supports vertical text.", muted);
+            AddSetting(controls, 12, "Window", keepMainOnTop);
+            Label tip = Note("Auto-detect watches Chinese, Korean and Japanese on screen. For other scripts, choose the source language on the dashboard.", muted);
             tip.Font = new Font("Segoe UI", 9F);
-            controls.Controls.Add(tip, 0, 9);
+            controls.Controls.Add(tip, 0, 10);
             controls.SetColumnSpan(tip, 2);
             TableLayoutPanel fileControls = Rows(42, 65, 65, 43, 56, 56, 29, 0);
-            fileControls.MinimumSize = new Size(0, 410);
-            files.Controls.Add(fileControls);
             setupComponents = MakeButton("Install / repair components", delegate
             {
                 LaunchSetup(null, null);
@@ -563,15 +590,88 @@ namespace LiveTranslate
             packSummary = Note("Set up the starter languages or add an optional model for more inputs.", muted);
             packSummary.Font = new Font("Segoe UI", 9F);
             fileControls.Controls.Add(packSummary, 0, 7);
-            FlowLayoutPanel footer = Flow();
-            footer.FlowDirection = FlowDirection.RightToLeft;
-            Button apply = MakeButton("Apply changes", delegate
+            AddSettingsBody(processing, "Recognition", "Choose a speech model and tune recognition. Select Other language on the dashboard to edit language codes.", controls, 448);
+            AddSettingsBody(files, "Language files", "Install a starter set, add an optional model or import a file from your computer.", fileControls, 440);
+            TableLayoutPanel footer = Columns(0, 111);
+            footer.Padding = new Padding(5, 6, 2, 2);
+            footer.Controls.Add(Note("Audio and screen changes apply when you close Settings.", secondaryInk), 0, 0);
+            Button apply = MakeButton("Done", delegate
             {
                 ApplySettings();
             }, true);
-            apply.Width = 160;
-            footer.Controls.Add(apply);
+            apply.Dock = DockStyle.Fill;
+            apply.Margin = new Padding(6, 1, 0, 2);
+            StyleSettingControl(apply);
+            settingsForm.CancelButton = apply;
+            footer.Controls.Add(apply, 1, 0);
             main.Controls.Add(footer, 0, 2);
+        }
+
+        private TabPage SettingsPage(string name)
+        {
+            return new TabPage(name) { BackColor = SystemColors.Window, ForeColor = paperInk,
+                Padding = new Padding(16, 10, 16, 10), AutoScroll = true };
+        }
+
+        private void SettingSection(TableLayoutPanel table, int row, string name)
+        {
+            var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            heading.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var label = new Label { Text = name, AutoSize = true, Anchor = AnchorStyles.Left, Font = new Font(Font, FontStyle.Bold),
+                ForeColor = paperInk, Margin = new Padding(0, 0, 10, 0) };
+            var rule = new Panel { Height = 1, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = Padding.Empty,
+                BackColor = SystemInformation.HighContrast ? SystemColors.WindowText : Color.FromArgb(211, 224, 221) };
+            heading.Controls.Add(label, 0, 0); heading.Controls.Add(rule, 1, 0);
+            table.Controls.Add(heading, 0, row); table.SetColumnSpan(heading, 2);
+        }
+
+        private void AddSettingsBody(TabPage page, string heading, string description, Control content, int height)
+        {
+            var layout = Rows(32, 51, height);
+            layout.Dock = DockStyle.Top;
+            if (height > 0) layout.Height = 83 + height;
+            else
+            {
+                layout.AutoSize = true;
+                layout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                layout.RowStyles[2].SizeType = SizeType.AutoSize;
+            }
+            var title = Note(heading, paperInk);
+            title.Font = new Font(Font.FontFamily, 15F, FontStyle.Bold);
+            var blurb = Note(description, secondaryInk);
+            blurb.TextAlign = ContentAlignment.TopLeft;
+            blurb.Padding = new Padding(0, 3, 1, 0);
+            content.Dock = DockStyle.Fill;
+            layout.Controls.Add(title, 0, 0);
+            layout.Controls.Add(blurb, 0, 1);
+            layout.Controls.Add(content, 0, 2);
+            StyleSettingControl(layout);
+            page.Controls.Add(layout);
+        }
+
+        private void StyleSettingControl(Control control)
+        {
+            Button button = control as Button;
+            bool contrast = SystemInformation.HighContrast;
+            if (button != null)
+            {
+                bool primary = button.BackColor == accent;
+                button.BackColor = primary ? (contrast ? SystemColors.Highlight : violet) : SystemColors.Window;
+                button.ForeColor = primary ? (contrast ? SystemColors.HighlightText : Color.White) : (contrast ? SystemColors.WindowText : paperInk);
+                button.FlatAppearance.BorderColor = primary ? button.BackColor : (contrast ? SystemColors.WindowText : Color.FromArgb(154, 174, 171));
+            }
+            else if (control is TextBox || control is ComboBox || control is NumericUpDown)
+            {
+                control.ForeColor = SystemColors.WindowText;
+                TextBox text = control as TextBox;
+                control.BackColor = text != null && text.ReadOnly ? SystemColors.Control : SystemColors.Window;
+            }
+            else if (control is Label || control is CheckBox)
+            {
+                control.ForeColor = contrast ? SystemColors.WindowText : control.ForeColor == muted ? secondaryInk : control.ForeColor == accent ? violet : paperInk;
+            }
+            foreach (Control child in control.Controls) StyleSettingControl(child);
         }
 
         private Control ModelSetting(string name, string description, Button action)
@@ -595,7 +695,10 @@ namespace LiveTranslate
         private void AddSetting(TableLayoutPanel table, int row, string label, Control control)
         {
             Label name = Note(label, muted);
-            name.Padding = new Padding(0, 5, 0, 0);
+            name.TextAlign = ContentAlignment.TopLeft;
+            name.Padding = new Padding(0, 4, 7, 0);
+            if (String.IsNullOrEmpty(control.AccessibleName)) control.AccessibleName = label;
+            control.TabIndex = row;
             table.Controls.Add(name, 0, row);
             table.Controls.Add(control, 1, row);
         }

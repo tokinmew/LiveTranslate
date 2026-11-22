@@ -1,5 +1,9 @@
 # Download sources and checks
 
+## 0.6.6 interface and caption fixes
+
+The interface uses Windows Forms, system fonts and graphics drawn by the app. This release reuses the existing model and runtime distributions. It introduces no third-party download, web font, JavaScript library or paid service.
+
 ## 0.6.4 language expansion
 
 This release adds first-party code and reuses the reviewed local runtime and model payloads. No new third-party executable, DLL, model or font was downloaded for this build. PC VR captions use a native window drawn by the app. No Valve library is loaded or included for this feature.

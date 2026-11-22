@@ -1,0 +1,123 @@
+"""Apply a signed release to the 0.6.5 Windows client using in-memory GitHub responses."""
+from contextlib import ExitStack
+from hashlib import sha256
+import argparse
+import io
+import json
+from pathlib import Path
+import shutil
+import sys
+import tempfile
+from unittest.mock import patch
+from urllib.error import HTTPError
+
+
+HERE = Path(__file__).resolve().parent
+DEFAULT_OLD = HERE.parents[1] / "captions-v065/LiveTranslate"
+DEFAULT_NEW = HERE.parent / "LiveTranslate"
+
+
+def sha(data):
+    return sha256(data).hexdigest()
+
+
+def check(feed, mode, old, new, ocr_model):
+    import app_updates
+    import github_releases
+    import release_signature
+    import update_install
+    url = "https://github.com/tokinmew/LiveTranslate"
+    manifest_bytes = (feed / "latest.json").read_bytes()
+    manifest = json.loads(manifest_bytes)
+    assert manifest["version"] == "0.6.6"
+    release_signature.verify_official_manifest("tokinmew/LiveTranslate", manifest)
+    payload = (feed / manifest["package"]).read_bytes()
+    assert sha(payload) == manifest["sha256"] and len(payload) == manifest["size"]
+    files = json.loads(payload)["files"]
+    data = {"assets/1": manifest_bytes, "assets/2": payload}
+    api_calls = []
+
+    def read(endpoint, accept, limit):
+        prefix = "repos/tokinmew/LiveTranslate/releases/"
+        assert endpoint.startswith(prefix)
+        resource = endpoint[len(prefix):]
+        api_calls.append(resource)
+        if resource == "latest":
+            assert accept == "application/vnd.github+json"
+            assets = []
+            for ident, name in ((1, "latest.json"), (2, manifest["package"])):
+                body = data[f"assets/{ident}"]
+                assets.append(dict(id=ident, name=name, state="uploaded", size=len(body), digest="sha256:" + sha(body)))
+            response = json.dumps(dict(tag_name="v0.6.6", draft=False, prerelease=False, assets=assets)).encode()
+        else:
+            assert accept == "application/octet-stream"
+            response = data[resource]
+        assert len(response) <= limit
+        return response
+
+    def private_repository(*_):
+        raise HTTPError(url, 404, "Not found", {}, io.BytesIO())
+
+    with tempfile.TemporaryDirectory(dir=HERE) as temp, ExitStack() as stack:
+        stack.enter_context(patch("socket.create_connection", side_effect=AssertionError("Network access")))
+        stack.enter_context(patch("socket.getaddrinfo", side_effect=AssertionError("Network lookup")))
+        source = str(feed)
+        if mode == "private-fixture":
+            source = url
+            stack.enter_context(patch.object(github_releases, "public_read", side_effect=private_repository))
+            stack.enter_context(patch.object(github_releases, "private_read", side_effect=read))
+            changed = dict(manifest, sha256="0" * 64)
+            data["assets/1"] = json.dumps(changed).encode()
+            try:
+                app_updates.check_update(source, "0.6.5")
+            except ValueError as error:
+                assert "signature" in str(error).lower()
+            else:
+                raise AssertionError("Altered signed metadata was accepted")
+            data["assets/1"] = manifest_bytes
+
+        app = Path(temp) / "LiveTranslate"
+        for folder in ("ui", "backend"):
+            shutil.copytree(old / folder, app / folder, ignore=shutil.ignore_patterns("__pycache__"))
+        for name in ("LiveTranslate.exe", "Start.cmd"):
+            shutil.copyfile(old / name, app / name)
+        exe = app / "LiveTranslate.exe"
+        assert app_updates._file_version(exe) == (0, 6, 5, 0)
+        baseline = sha(exe.read_bytes())
+        model = app / "data/tessdata/jpn.traineddata"
+        model.parent.mkdir(parents=True)
+        shutil.copyfile(ocr_model, model)
+        prefs = app / "data/app-update-source.txt"
+        prefs.write_text(source, "utf8")
+        model_hash = sha(model.read_bytes())
+        offer = app_updates.check_update(source, "0.6.5")
+        assert offer["available"] and offer["version"] == manifest["version"] and "assets/2" not in api_calls
+        ready = app_updates.prepare_update(app, source, "0.6.5", offer["version"], offer["sha256"])
+        assert ready["ok"] and sha(exe.read_bytes()) == baseline
+        update_install.apply_stage(app, ready["stage"], restart=False)
+        assert app_updates._file_version(exe) == (0, 6, 6, 0)
+        assert not app_updates.check_update(source, "0.6.6")["available"]
+        assert not (app / ".livetranslate-update/transaction.json").exists()
+        assert prefs.read_text("utf8") == source and sha(model.read_bytes()) == model_hash
+        assert api_calls.count("assets/2") == int(mode == "private-fixture")
+        for file in files:
+            name = file["path"]
+            assert sha((app / name).read_bytes()) == file["sha256"], name
+            assert (app / name).read_text("utf-8-sig") == (new / name).read_text("utf-8-sig"), name
+        return dict(route=mode, old="0.6.5", installed="0.6.6", source_files=len(files), package_sha256=sha(payload),
+                    retained_ocr_sha256=model_hash, settings_preserved=True, defender_passed=True, native_compile=True,
+                    signature_verified=True, network_used=False)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("feed", type=Path, help="Folder containing signed latest.json and the numbered package")
+    parser.add_argument("--old-app", type=Path, default=DEFAULT_OLD, help="Extracted 0.6.5 application")
+    parser.add_argument("--new-app", type=Path, default=DEFAULT_NEW, help="Released 0.6.6 source directory")
+    parser.add_argument("--ocr-model", type=Path, help="Checked jpn.traineddata file to retain through the update")
+    args = parser.parse_args()
+    old, new = args.old_app.resolve(), args.new_app.resolve()
+    sys.path.insert(0, str(old / "backend"))
+    model = args.ocr_model or old / "data/tessdata/jpn.traineddata"
+    results = [check(args.feed.resolve(), route, old, new, model) for route in ("local-folder", "private-fixture")]
+    print(json.dumps(results, indent=2))

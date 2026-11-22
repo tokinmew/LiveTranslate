@@ -1,4 +1,23 @@
-# LiveTranslate 0.6.5 test results
+# LiveTranslate 0.6.6 test results
+
+| Area | Windows test result |
+| --- | --- |
+| Backend regression suite | 364 tests passed with zero errors, failures or skips. |
+| Starter translation models | Four of four generated CJK examples retained the scored details and repeated consistently. |
+| Optional multilingual text model | Every one of 18 translations repeated consistently. Seventeen retained all scored details. The Bengali output conveyed wanting water and omitted the verb “drink.” |
+| English filtering | All 3,030 pasted-text and profile combinations skipped translation. All 200 English-only screen cases stayed clear. |
+| OCR placement | 34 of 36 generated mixed-language panels located the foreign text. OCR matched 27 exactly, including 11 of 12 CJK panels. Two European examples were missed. |
+| Screen replay | Each of five generated panels placed one English caption, kept it stable across three scans, left the adjacent English line alone, and cleared it when the fourth scan contained only English. |
+| Dashboard runtime | 26 hidden-window checks passed. Eight of those checks failed on the shipped 0.6.5 build. Cases cover display loss, source changes, restarted workers and fresh audio device lists. |
+| Dashboard controls | 26 native checks passed. They exercised repeated Ctrl+Enter presses, changing languages with a request in flight, retry after failure, compact layouts and keyboard focus. |
+| Transcript | 1,182 generated caption deliveries exercised the 180-entry history. A selection and its visible line survived new arrivals, eviction and source-visibility changes. Native GDI and USER handle counts stayed flat during the 1,000-entry burst. |
+| Settings and language picker | 66 native checks passed, including keyboard navigation, source search, preserving edits during status refresh, update progress and compact layouts at simulated 125%, 150% and 200% scaling. Thirteen additional update-interface checks and 15 previous layout checks passed. |
+| Overlay and PC VR window | 58 native checks, two replays and seven generated visual backgrounds passed. Scope included 96, 144 and 192 DPI, clipping, speech collision avoidance and long-caption reading. |
+| Setup | 27 installer assertions covered repair, preserved user files, locks, rollback, shortcuts and downgrade handling. |
+
+The older 0.6.4 continuous replay remains incomplete. The most recent saved receipt recorded 38.142 seconds, 140 trials and 147 cached phrases against a limit of 256. Automatic review stopped the run after detecting an unexpected outbound telemetry connection. It did not reach the two-hour threshold. The session tests here used generated inputs and local files. Personal screen capture, live listening and a physical headset were outside this verification.
+
+## Earlier 0.6.5 test results
 
 The Windows dashboard compiled with the existing .NET Framework toolchain. Thirteen updater interface checks passed. Eleven simulated GitHub transport cases and 24 existing feed/transaction tests passed. Windows verified a genuine LiveTranslate RSA-3072 signature and rejected five altered manifests. The signed GitHub feed verifies the selected stable tag, exact asset IDs, package SHA-256 and release signature before applying the existing updater transaction. Live publication and a private GitHub download require a separately provisioned private repository and CLI sign-in.
 

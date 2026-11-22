@@ -198,13 +198,14 @@ namespace LiveTranslate
                     voicePrefs = json.Deserialize<VoiceOptions>(File.ReadAllText(path)) ?? new VoiceOptions();
             }
             catch (Exception) { }
-            spokenTab = new TabPage("Spoken English") { BackColor = surface, Padding = new Padding(13), AutoScroll = true };
-            var controls = new TableLayoutPanel { Dock = DockStyle.Top, Height = 310, RowCount = 7, ColumnCount = 2 };
-            controls.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
+            spokenTab = SettingsPage("Spoken English");
+            var controls = new TableLayoutPanel { Dock = DockStyle.Top, Height = 330, RowCount = 7, ColumnCount = 2, Margin = Padding.Empty };
+            controls.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 159));
             controls.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             for (int i = 0; i < 6; i++) controls.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             controls.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            speakEnabled = new CheckBox { Text = "Read voice translations aloud", AutoSize = true, ForeColor = ink, Checked = voicePrefs.Enabled };
+            speakEnabled = new CheckBox { Text = "Read voice translations aloud", AutoSize = true, ForeColor = ink, Checked = voicePrefs.Enabled,
+                Margin = new Padding(0, 1, 0, 6), Font = new Font(Font, FontStyle.Bold) };
             controls.Controls.Add(speakEnabled, 0, 0); controls.SetColumnSpan(speakEnabled, 2);
             spokenVoice = Combo(); spokenDevice = Combo();
             AddSetting(controls, 1, "English voice", spokenVoice);
@@ -217,8 +218,12 @@ namespace LiveTranslate
             Button refresh = MakeButton("Refresh devices", delegate { RefreshVoiceOptions(); }, false);
             refresh.Width = 145; controls.Controls.Add(refresh, 1, 5);
             voiceStatus = Note("Listen to translated voices from Auto listen. Your game and call keep their original sound.", muted);
+            voiceStatus.TextAlign = ContentAlignment.TopLeft;
+            voiceStatus.Padding = new Padding(0, 10, 0, 0);
+            voiceStatus.AccessibleRole = AccessibleRole.StatusBar;
             controls.Controls.Add(voiceStatus, 0, 6); controls.SetColumnSpan(voiceStatus, 2);
-            spokenTab.Controls.Add(controls); settingsTabs.TabPages.Add(spokenTab);
+            AddSettingsBody(spokenTab, "Voice playback", "Have Windows read translated speech aloud. Choose the English voice and playback device here.", controls, 312);
+            settingsTabs.TabPages.Add(spokenTab);
             settingsTabs.SelectedIndexChanged += delegate { if (settingsTabs.SelectedTab == spokenTab) RefreshVoiceOptions(); };
             speakEnabled.CheckedChanged += delegate { if (!loadingVoice) ChangeVoiceSettings(); };
             spokenDevice.SelectionChangeCommitted += delegate { ChangeVoiceSettings(); };

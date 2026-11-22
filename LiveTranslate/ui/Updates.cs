@@ -147,18 +147,15 @@ namespace LiveTranslate
 
         private void BuildUpdatesTab()
         {
-            var page = new TabPage("Updates") { BackColor = surface, ForeColor = ink, AutoScroll = true };
+            var page = SettingsPage("Updates");
             var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                ColumnCount = 1, Padding = new Padding(16), BackColor = surface, ForeColor = ink };
+                ColumnCount = 1, Margin = Padding.Empty, BackColor = SystemColors.Window, ForeColor = paperInk };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            var installed = new Label { Text = "Installed version   " + CurrentUpdateVersion(),
-                AutoSize = true, Font = new Font(Font, FontStyle.Bold), Margin = new Padding(0, 0, 0, 16) };
-            layout.Controls.Add(installed, 0, 0);
-            updateSourceLabel = new Label { AutoSize = true, Margin = new Padding(0, 0, 0, 4) };
-            layout.Controls.Add(updateSourceLabel, 0, 1);
+            updateSourceLabel = new Label { AutoSize = true, Font = new Font(Font, FontStyle.Bold), Margin = new Padding(0, 0, 0, 6) };
+            layout.Controls.Add(updateSourceLabel, 0, 0);
             updateSource = new TextBox { Dock = DockStyle.Top, BackColor = field, ForeColor = ink, Text = ReadUpdateSource(out managedReleaseSource),
                 AccessibleName = "GitHub repository, server URL or manifest file", Margin = new Padding(0, 0, 0, 6) };
-            layout.Controls.Add(updateSource, 0, 2);
+            layout.Controls.Add(updateSource, 0, 1);
             var sources = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0) };
             githubUpdate = UpdateButton("GitHub Releases");
             githubUpdate.Click += delegate { SetReleaseSource(ProjectRepository, false); };
@@ -173,18 +170,25 @@ namespace LiveTranslate
             sources.Controls.Add(githubUpdate);
             sources.Controls.Add(browseUpdate);
             sources.Controls.Add(defaultUpdate);
-            layout.Controls.Add(sources, 0, 3);
+            layout.Controls.Add(sources, 0, 2);
             updateSourceHint = new Label { AutoSize = true, MaximumSize = new Size(525, 0),
                 ForeColor = ink, Margin = new Padding(0, 6, 0, 0) };
-            layout.Controls.Add(updateSourceHint, 0, 4);
+            layout.Controls.Add(updateSourceHint, 0, 3);
             updateState = new Label { Text = LastUpdateResult(),
                 AutoSize = true, MaximumSize = new Size(540, 0), ForeColor = ink, Margin = new Padding(0, 16, 0, 6) };
-            layout.Controls.Add(updateState, 0, 5);
+            updateState.AccessibleRole = AccessibleRole.StatusBar;
+            layout.Controls.Add(updateState, 0, 4);
+            layout.SizeChanged += delegate
+            {
+                int width = Math.Max(1, layout.ClientSize.Width - 4);
+                updateSourceHint.MaximumSize = updateState.MaximumSize = new Size(width, 0);
+            };
             updateActivity = new ProgressBar { Dock = DockStyle.Top, Height = 6, MarqueeAnimationSpeed = 0,
                 Style = ProgressBarStyle.Blocks, Margin = new Padding(0, 2, 0, 8) };
-            layout.Controls.Add(updateActivity, 0, 6);
+            layout.Controls.Add(updateActivity, 0, 5);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0) };
             checkUpdates = UpdateButton("Check for updates");
+            checkUpdates.BackColor = accent;
             installUpdate = UpdateButton("Download and restart");
             cancelUpdate = UpdateButton("Cancel");
             checkUpdates.Click += delegate { RunUpdateAction(false); };
@@ -193,13 +197,13 @@ namespace LiveTranslate
             actions.Controls.Add(checkUpdates);
             actions.Controls.Add(installUpdate);
             actions.Controls.Add(cancelUpdate);
-            layout.Controls.Add(actions, 0, 7);
+            layout.Controls.Add(actions, 0, 6);
             updateSource.TextChanged += delegate
             {
                 managedReleaseSource = String.IsNullOrWhiteSpace(updateSource.Text);
                 ClearReleaseOffer();
             };
-            page.Controls.Add(layout);
+            AddSettingsBody(page, "App updates", "Installed version " + CurrentUpdateVersion() + ". Choose a release source and check for a new version.", layout, 0);
             settingsTabs.TabPages.Add(page);
             FormClosed += delegate { if (updateJob != null && !preparingUpdate && !restartCommitted && !waitingForInstaller) updateJob.Cancel(); };
             RefreshUpdateActions();
@@ -221,7 +225,7 @@ namespace LiveTranslate
 
         private Button UpdateButton(string caption)
         {
-            var button = new Button { Text = caption, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            var button = new ModernButton { Text = caption, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(8, 4, 8, 4), Margin = new Padding(0, 2, 8, 2),
                 FlatStyle = FlatStyle.Flat, BackColor = field, ForeColor = ink, UseVisualStyleBackColor = false };
             button.FlatAppearance.BorderColor = border;
@@ -241,8 +245,10 @@ namespace LiveTranslate
             updateSourceHint.Text = github ? "Use a repository that publishes LiveTranslate releases. For a private repository, sign in to GitHub CLI (gh auth login) with an account that has read access." : "";
             checkUpdates.Enabled = browseUpdate.Enabled = defaultUpdate.Enabled = githubUpdate.Enabled = updateSource.Enabled = !busy;
             installUpdate.Enabled = !busy && offeredVersion != null && offeredDigest != null;
+            installUpdate.Visible = offeredVersion != null && offeredDigest != null;
             cancelUpdate.Enabled = busy && !preparingUpdate && !restartCommitted;
             cancelUpdate.Visible = cancelUpdate.Enabled;
+            updateActivity.Visible = busy;
             updateActivity.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
             updateActivity.MarqueeAnimationSpeed = busy ? 35 : 0;
         }

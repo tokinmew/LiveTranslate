@@ -93,14 +93,14 @@ namespace LiveTranslate
             if (Width < 4 || Height < 4) return;
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             RectangleF track = new RectangleF(1F, 1F, Width - 2F, Height - 2F);
-            Color trackColor = Enabled ? (Checked ? accent : Color.FromArgb(74, 91, 113)) : Color.FromArgb(56, 66, 81);
+            Color trackColor = Enabled ? (Checked ? accent : Color.FromArgb(77, 102, 103)) : Color.FromArgb(60, 82, 83);
             using (GraphicsPath path = ModernGeometry.Rounded(track, track.Height / 2F))
             using (Brush brush = new SolidBrush(trackColor)) e.Graphics.FillPath(brush, path);
             float inset = Math.Max(3F, Height * 0.12F);
             float diameter = Math.Max(4F, Height - inset * 2F);
             float left = Checked ? Width - inset - diameter : inset;
             using (Brush shadow = new SolidBrush(Color.FromArgb(30, 0, 0, 0))) e.Graphics.FillEllipse(shadow, left, inset + 1F, diameter, diameter);
-            Color thumb = !Enabled ? Color.FromArgb(162, 174, 188) : Checked ? Color.FromArgb(50, 41, 103) : Color.White;
+            Color thumb = !Enabled ? Color.FromArgb(157, 179, 176) : Checked ? Color.FromArgb(17, 65, 60) : Color.White;
             using (Brush knob = new SolidBrush(thumb)) e.Graphics.FillEllipse(knob, left, inset, diameter, diameter);
             if (Focused && ShowFocusCues)
             {
@@ -167,10 +167,13 @@ namespace LiveTranslate
         }
     }
 
+    internal enum ButtonSymbol { None, Headset, Settings, Arrow }
+
     internal class ModernButton : Button
     {
         private bool hovered, pressed;
         public bool IsPicker { get; set; }
+        internal ButtonSymbol Symbol { get; set; }
         public ModernButton()
         {
             FlatStyle = FlatStyle.Flat;
@@ -201,9 +204,9 @@ namespace LiveTranslate
             if (!Enabled)
             {
                 bool light = surround.GetBrightness() > .6F;
-                fill = light ? Color.FromArgb(241, 243, 248) : Color.FromArgb(54, 60, 79);
-                text = light ? Color.FromArgb(94, 103, 125) : Color.FromArgb(185, 192, 210);
-                outline = light ? Color.FromArgb(220, 223, 232) : Color.FromArgb(74, 80, 100);
+                fill = light ? Color.FromArgb(241, 245, 243) : Color.FromArgb(48, 70, 71);
+                text = light ? Color.FromArgb(95, 112, 108) : Color.FromArgb(183, 200, 194);
+                outline = light ? Color.FromArgb(217, 226, 221) : Color.FromArgb(73, 95, 94);
             }
             else if (hovered || pressed)
             {
@@ -230,8 +233,48 @@ namespace LiveTranslate
                 using (Pen mark = new Pen(text, 1.6F * scale))
                     e.Graphics.DrawLines(mark, new[] { new PointF(end - 4 * scale, Height / 2F - scale), new PointF(end, Height / 2F + 3 * scale), new PointF(end + 4 * scale, Height / 2F - scale) });
             }
+            if (Symbol != ButtonSymbol.None)
+            {
+                int label = TextRenderer.MeasureText(e.Graphics, Text, Font, Size.Empty, TextFormatFlags.NoPadding).Width;
+                int icon = (int)Math.Ceiling(16 * scale), gap = (int)Math.Ceiling(6 * scale);
+                if (bounds.Width >= label + icon + gap + 2)
+                {
+                    int start = (Width - label - icon - gap) / 2;
+                    GraphicsState state = e.Graphics.Save();
+                    e.Graphics.TranslateTransform(start, (Height - icon) / 2F);
+                    e.Graphics.ScaleTransform(icon / 16F, icon / 16F);
+                    using (Pen pen = new Pen(text, 1.5F) { LineJoin = LineJoin.Round, StartCap = LineCap.Round, EndCap = LineCap.Round })
+                    {
+                        if (Symbol == ButtonSymbol.Arrow) {
+                            e.Graphics.DrawLine(pen, 1.5F, 8, 14, 8);
+                            e.Graphics.DrawLines(pen, new[] { new Point(9,3), new Point(14,8), new Point(9,13) });
+                        } else if (Symbol == ButtonSymbol.Headset) {
+                            using (GraphicsPath headset = ModernGeometry.Rounded(new RectangleF(1,4,14,9), 3)) e.Graphics.DrawPath(pen, headset);
+                            e.Graphics.DrawLine(pen, 3, 5, 13, 5);
+                            e.Graphics.DrawLines(pen, new[] { new Point(6,12), new Point(8,10), new Point(10,12) });
+                        } else {
+                            for (int i = 0; i < 3; i++) {
+                                int x = i == 1 ? 9 : 4, y = 3 + 5 * i;
+                                e.Graphics.DrawLine(pen, 1, y, x - 2, y);
+                                e.Graphics.DrawEllipse(pen, x - 1, y - 1.5F, 3, 3);
+                                e.Graphics.DrawLine(pen, x + 3, y, 15, y);
+                            }
+                        }
+                    }
+                    e.Graphics.Restore(state);
+                    bounds.X = start + icon + gap;
+                    bounds.Width = Width - bounds.X - 2;
+                    align = TextFormatFlags.Left | TextFormatFlags.NoPadding;
+                }
+            }
             TextRenderer.DrawText(e.Graphics, Text, Font, bounds, text, align | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-            if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(e.Graphics, bounds, text, fill);
+            if (Focused && ShowFocusCues && Width > 9 * scale && Height > 9 * scale)
+            {
+                float inset = 3.5F * scale;
+                using (GraphicsPath focus = ModernGeometry.Rounded(new RectangleF(inset, inset, Width - inset * 2, Height - inset * 2), 3 * scale))
+                using (Pen line = new Pen(fill.GetBrightness() < .5F ? Color.FromArgb(162,240,213) : Color.FromArgb(18,99,85), 1.4F*scale))
+                    e.Graphics.DrawPath(line,focus);
+            }
         }
     }
 }

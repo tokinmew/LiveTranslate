@@ -12,6 +12,10 @@ _MEANING_MARKS = re.compile(
     r"ません|ない|なかった|ぬ|ず|아니|아닌|안|않|없|못|[不无無没沒未非勿禁别別莫否]|[?!！？]")
 
 
+def _sample_margin(box):
+    return max(2, min(24, min(box[2]-box[0], box[3]-box[1])//2))
+
+
 def _sample(image, left, top, box):
     x, y, right, bottom = box
     w, h = right - x, bottom - y
@@ -19,7 +23,7 @@ def _sample(image, left, top, box):
         return None
     # Include the ends of the line. Appending a minus sign, digit, or negative
     # particle just outside the old OCR box must invalidate the old reading.
-    margin = max(2, min(24, min(w, h)//2))
+    margin = _sample_margin(box)
     x, y, right, bottom = x-left, y-top, right-left, bottom-top
     if not (0 <= x < right <= image.width and 0 <= y < bottom <= image.height):
         return None
@@ -89,10 +93,17 @@ def _identity(key):
     # superscripts or circled quantities that can genuinely change meaning.
     value = unicodedata.normalize("NFC", "".join(
         unicodedata.normalize("NFKC", ch) if "\uff01" <= ch <= "\uff9f" or ch == "\u3000" else ch for ch in raw))
-    if language in ("han", "zh", "zt", "ja"):
-        value = "".join(ch for i,ch in enumerate(value) if not
-                        (ch.isspace() and i > 0 and i+1 < len(value) and script(value[i-1]) and script(value[i+1])))
-    return language, " ".join(value.split())
+    value = " ".join(value.split())
+    if language in ("han", "zh", "zt", "ja") and " " in value:
+        # OCR can insert spaces between characters, but separated number
+        # groups and a single compound number can mean different things.
+        def native_space(match):
+            left, right = value[match.start()-1], value[match.end()]
+            if script(left) and script(right) and not (left.isnumeric() and right.isnumeric()):
+                return ""
+            return " "
+        value = re.sub(" ", native_space, value)
+    return language, value
 
 
 def _overlap(a, b):
@@ -114,7 +125,8 @@ class ScreenTracker:
         prior_order = []
         held = {}
         for key, box in observed:
-            stable = self.first.get(_identity(key), key)
+            identity = _identity(key)
+            stable = self.first.get(identity, key)
             match = None
             score = .70
             if box:
@@ -122,7 +134,10 @@ class ScreenTracker:
                     agreement = _overlap(box, old)
                     if agreement < score:
                         continue
-                    probes = [samples.get(old)]
+                    # The old patch cannot confirm words outside its measured
+                    # pixels or justify carrying omitted words into a shorter box.
+                    within_margin = box == old or max(abs(a-b) for a,b in zip(box, old)) <= _sample_margin(old)
+                    probes = [samples.get(old)] if within_margin else []
                     if box != old and (box[2]-box[0],box[3]-box[1]) == (old[2]-old[0],old[3]-old[1]):
                         # Text and its OCR box may scroll together. Compare
                         # the complete translated source patch at its new origin.
@@ -130,7 +145,7 @@ class ScreenTracker:
                     same_rgb = saved and any(p and p[0] == saved[0] for p in probes)
                     identical_ink = (saved and saved[1] and any(p and p[1] == saved[1] for p in probes) and
                                      _MEANING_MARKS.findall(key[1]) == _MEANING_MARKS.findall(old_key[1]))
-                    if (_identity(key) == _identity(old_key) or
+                    if (identity == _identity(old_key) or
                             same_rgb or identical_ink):
                         match, score = old, agreement
             if match is not None:

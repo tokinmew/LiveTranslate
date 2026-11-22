@@ -6,7 +6,9 @@ namespace LiveTranslate
 {
     internal sealed partial class MainForm
     {
-        private Button copyTranscript, clearTranscript, pickLanguage;
+        private Button copyTranscript, clearTranscript, pickLanguage, translateButton;
+        private Label audioDeviceHint;
+        private TableLayoutPanel screenRegionRow;
         private readonly Label[] modeStates = new Label[3];
         private Label transcriptCount;
         private readonly ToolTip dashboardTips = new ToolTip { AutoPopDelay = 9000, InitialDelay = 480, ReshowDelay = 150 };
@@ -23,25 +25,26 @@ namespace LiveTranslate
 
         private void BuildUi()
         {
-            TableLayoutPanel main = Rows(68, 0, 32);
-            main.Padding = new Padding(18, 5, 18, 4);
+            TableLayoutPanel main = Rows(70, 0, 31);
+            main.Padding = new Padding(19, 2, 19, 3);
             main.BackColor = background;
             Controls.Add(main);
-            TableLayoutPanel header = Columns(0, 355);
-            TableLayoutPanel brand = Columns(48, 0);
-            brand.Controls.Add(new DashboardGlyph(DashboardGlyph.Kind.Brand) { Size = new Size(38, 38), Anchor = AnchorStyles.Left, Margin = Padding.Empty }, 0, 0);
+            TableLayoutPanel header = Columns(0, 415);
+            TableLayoutPanel brand = Columns(50, 0);
+            DashboardGlyph brandMark = new DashboardGlyph(DashboardGlyph.Kind.Brand) { Size = new Size(38, 38), Anchor = AnchorStyles.Left, Margin = Padding.Empty };
+            brand.Controls.Add(brandMark, 0, 0);
             brand.Controls.Add(Title("Live Translate", paperInk, 18), 1, 0);
             header.Controls.Add(brand, 0, 0);
-            TableLayoutPanel tools = Columns(0, 197);
-            engineBadge = Note("Checking local engine", secondaryInk);
-            engineBadge.TextAlign = ContentAlignment.MiddleRight;
-            engineBadge.Padding = new Padding(0, 0, 14, 0);
+            TableLayoutPanel tools = Columns(0, 224);
+            engineBadge = new EngineIndicator { Text = "Checking local engine", Dock = DockStyle.Fill, Margin = new Padding(0,0,12,0), ForeColor = paperInk, Font = new Font(Font.FontFamily, 9F) };
             tools.Controls.Add(engineBadge, 0, 0);
-            TableLayoutPanel buttons = Columns(106, 0);
+            TableLayoutPanel buttons = Columns(118, 0);
             Button vr = LightButton("VR captions", delegate { OpenVrCaptions(); });
             Button settings = LightButton("Settings", delegate { OpenSettings(); });
-            vr.Size = new Size(101, 34);
-            settings.Size = new Size(85, 34);
+            ((ModernButton)vr).Symbol = ButtonSymbol.Headset;
+            ((ModernButton)settings).Symbol = ButtonSymbol.Settings;
+            vr.Size = new Size(112, 35);
+            settings.Size = new Size(100, 35);
             vr.Margin = settings.Margin = Padding.Empty;
             vr.Anchor = AnchorStyles.Left;
             settings.Anchor = AnchorStyles.Right;
@@ -53,11 +56,11 @@ namespace LiveTranslate
             header.Controls.Add(tools, 1, 0);
             main.Controls.Add(header, 0, 0);
 
-            TableLayoutPanel workspace = Columns(316, 0);
+            TableLayoutPanel workspace = Columns(322, 0);
             workspace.TabIndex = 0;
             header.TabIndex = 1;
             workspace.Controls.Add(BuildCapturePanel(), 0, 0);
-            TableLayoutPanel right = Rows(0, 170);
+            TableLayoutPanel right = Rows(0, 166);
             right.Controls.Add(BuildTranscript(), 0, 0);
             right.Controls.Add(BuildComposer(), 0, 1);
             workspace.Controls.Add(right, 1, 0);
@@ -66,6 +69,17 @@ namespace LiveTranslate
             status.TextAlign = ContentAlignment.MiddleLeft;
             status.AccessibleRole = AccessibleRole.StatusBar;
             main.Controls.Add(status, 0, 2);
+            // Reflow fixed columns in logical pixels after Windows scales the form.
+            EventHandler adapt = delegate {
+                if (!main.IsHandleCreated) return;
+                float dpi = brandMark.Width / 38F;
+                bool compact = main.ClientSize.Width < 920 * dpi;
+                workspace.ColumnStyles[0].Width = (int)Math.Round((compact ? 280 : 322) * dpi);
+                right.RowStyles[1].Height = (int)Math.Round((main.ClientSize.Height < 600 * dpi ? 145 : 166) * dpi);
+            };
+            main.HandleCreated += adapt;
+            main.SizeChanged += adapt;
+            customTextSource.SelectedIndexChanged += delegate { UpdateTranslateAction(); };
             Disposed += delegate { dashboardTips.Dispose(); if (writtenLanguageSetup != null) writtenLanguageSetup.Dispose(); };
             UpdateTranscriptTools();
         }
@@ -74,15 +88,15 @@ namespace LiveTranslate
         {
             ModernCard rail = Card(surface);
             rail.BorderColor = surface;
-            rail.Padding = new Padding(17, 13, 17, 13);
+            rail.Padding = new Padding(17, 14, 17, 14);
             rail.Margin = new Padding(0, 0, 14, 0);
-            TableLayoutPanel form = Rows(34, 27, 39, 42, 1, 151, 1, 128, 1, 0, 56, 37);
-            form.Controls.Add(Title("Capture controls", ink, 16F), 0, 0);
+            TableLayoutPanel form = Rows(36, 27, 39, 43, 1, 151, 1, 124, 1, 0, 55, 36);
+            form.Controls.Add(Title("Capture sources", ink, 16F), 0, 0);
             TableLayoutPanel route = Columns(0, 109);
             route.Controls.Add(Title("Translate from", muted, 9.5F), 0, 0);
-            Label target = Kicker("INTO ENGLISH");
+            Label target = Kicker("\u2192  ENGLISH");
             target.TextAlign = ContentAlignment.MiddleRight;
-            target.ForeColor = Color.FromArgb(156, 224, 207);
+            target.ForeColor = accent;
             route.Controls.Add(target, 1, 0);
             form.Controls.Add(route, 0, 1);
             profileSelector = Combo();
@@ -115,7 +129,7 @@ namespace LiveTranslate
             for (int index = 0; index < modeStates.Length; index++)
             {
                 modes.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F / 3));
-                modeStates[index] = Note("", muted);
+                modeStates[index] = new AvailabilityIndicator { Dock = DockStyle.Fill, ForeColor = muted, Margin = Padding.Empty };
                 modeStates[index].TextAlign = ContentAlignment.MiddleLeft;
                 modeStates[index].Font = new Font(Font.FontFamily, 8.6F);
                 modes.Controls.Add(modeStates[index], index, 0);
@@ -142,15 +156,16 @@ namespace LiveTranslate
             panel.Padding = new Padding(0, 6, 0, 4);
             screenToggle = Switch("Watch screen", ScreenToggleChanged);
             panel.Controls.Add(CaptureHeading("Watch screen", DashboardGlyph.Kind.Screen, screenToggle), 0, 0);
-            TableLayoutPanel region = Columns(0, 136);
+            TableLayoutPanel region = screenRegionRow = Columns(0, 136);
             regionLabel = Note("Primary display", muted);
             regionLabel.Font = new Font(Font.FontFamily, 9F);
             region.Controls.Add(regionLabel, 0, 0);
             japaneseDirection = Combo();
             japaneseDirection.AccessibleName = "Japanese text direction";
             japaneseDirection.Font = new Font(Font.FontFamily, 8.8F);
-            japaneseDirection.Items.Add(new Choice("horizontal", "Horizontal Japanese"));
-            japaneseDirection.Items.Add(new Choice("vertical", "Vertical Japanese"));
+            japaneseDirection.Items.Add(new Choice("horizontal", "Horizontal"));
+            japaneseDirection.Items.Add(new Choice("vertical", "Vertical"));
+            dashboardTips.SetToolTip(japaneseDirection, "Direction of the Japanese text on screen.");
             japaneseDirection.SelectedIndex = 0;
             japaneseDirection.SelectedIndexChanged += delegate
             {
@@ -184,13 +199,21 @@ namespace LiveTranslate
             TableLayoutPanel panel = Rows(37, 33, 0);
             panel.Padding = new Padding(0, 6, 0, 3);
             audioToggle = Switch("Listen to computer audio or microphone", AudioToggleChanged);
-            panel.Controls.Add(CaptureHeading("PC audio + mic", DashboardGlyph.Kind.Audio, audioToggle), 0, 0);
+            panel.Controls.Add(CaptureHeading("Auto listen", DashboardGlyph.Kind.Audio, audioToggle), 0, 0);
             devices = Combo();
             devices.AccessibleName = "Audio device";
             devices.DropDownWidth = 460;
             dashboardTips.SetToolTip(devices, "Select computer playback, a microphone, or both when available.");
             devices.SelectedIndexChanged += delegate { if (!updatingDevices && audioWanted) RestartAudio(); };
-            panel.Controls.Add(devices, 0, 1);
+            Panel source = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 1, 0, 2), BackColor = Color.Transparent };
+            source.Controls.Add(devices);
+            audioDeviceHint = Note("Waiting for audio devices", muted);
+            audioDeviceHint.Padding = new Padding(9, 0, 0, 0);
+            audioDeviceHint.BackColor = field;
+            audioDeviceHint.Font = new Font(Font.FontFamily, 9F);
+            source.Controls.Add(audioDeviceHint);
+            audioDeviceHint.BringToFront();
+            panel.Controls.Add(source, 0, 1);
             audioStateLabel = Note("Off. Choose a source and turn on Auto listen.", muted);
             audioStateLabel.TextAlign = ContentAlignment.MiddleLeft;
             audioStateLabel.Font = new Font(Font.FontFamily, 9F);
@@ -202,26 +225,25 @@ namespace LiveTranslate
         private ModernCard BuildTranscript()
         {
             ModernCard card = LightCard(paper, new Padding(19, 13, 19, 13));
-            TableLayoutPanel form = Rows(42, 39, 1, 0);
-            TableLayoutPanel heading = Columns(0, 139);
-            heading.Controls.Add(Title("Live captions", paperInk, 21F), 0, 0);
-            overlayToggle = new CheckBox { Text = "Caption overlay", AccessibleName = "Show live caption overlay", AutoSize = true,
-                Checked = true, ForeColor = paperInk, BackColor = Color.Transparent, Anchor = AnchorStyles.Right, Margin = Padding.Empty };
+            TableLayoutPanel form = Rows(44, 38, 1, 0);
+            TableLayoutPanel heading = Columns(0, 145);
+            heading.Controls.Add(Title("Live captions", paperInk, 20F), 0, 0);
+            overlayToggle = new CaptionOption { Text = "Caption overlay", AccessibleName = "Show live caption overlay", AutoSize = false,
+                Checked = true, ForeColor = paperInk, BackColor = paper, Anchor = AnchorStyles.Right, Size = new Size(142,32), Margin = Padding.Empty };
             overlayToggle.CheckedChanged += delegate { OverlayPreferenceChanged(); };
             dashboardTips.SetToolTip(overlayToggle, "Show translated screen text near its source and speech captions over other windows.");
             heading.Controls.Add(overlayToggle, 1, 0);
             form.Controls.Add(heading, 0, 0);
-            TableLayoutPanel bar = Columns(0, 143);
-            FlowLayoutPanel options = Flow();
-            showSource = new CheckBox { Text = "Show source text", AccessibleName = "Show source text in the transcript", Checked = true,
-                AutoSize = true, BackColor = Color.Transparent, ForeColor = secondaryInk, Margin = new Padding(0, 7, 14, 0), Font = new Font(Font.FontFamily, 9.5F) };
+            TableLayoutPanel bar = Columns(0, 136);
+            TableLayoutPanel options = Columns(132, 0);
+            showSource = new CaptionOption { Text = "Source text", AccessibleName = "Show source text in the transcript", Checked = true,
+                AutoSize = false, Size = new Size(126,28), Anchor = AnchorStyles.Left, BackColor = paper, ForeColor = secondaryInk, Margin = Padding.Empty, Font = new Font(Font.FontFamily, 9.5F) };
             showSource.CheckedChanged += delegate { RenderCaptions(); };
-            options.Controls.Add(showSource);
+            options.Controls.Add(showSource, 0, 0);
             transcriptCount = Note("", secondaryInk);
-            transcriptCount.AutoSize = true;
-            transcriptCount.Margin = new Padding(0, 8, 0, 0);
+            transcriptCount.Margin = Padding.Empty;
             transcriptCount.Font = new Font(Font.FontFamily, 9F);
-            options.Controls.Add(transcriptCount);
+            options.Controls.Add(transcriptCount, 1, 0);
             bar.Controls.Add(options, 0, 0);
             TableLayoutPanel actions = Columns(72, 0);
             copyTranscript = LightButton("Copy", delegate
@@ -241,7 +263,7 @@ namespace LiveTranslate
             actions.Controls.Add(clearTranscript, 1, 0);
             bar.Controls.Add(actions, 1, 0);
             form.Controls.Add(bar, 0, 1);
-            form.Controls.Add(Divider(Color.FromArgb(223, 226, 237)), 0, 2);
+            form.Controls.Add(Divider(Color.FromArgb(218, 231, 225)), 0, 2);
             Panel body = new Panel { Dock = DockStyle.Fill, BackColor = paper, Margin = new Padding(0, 13, 0, 0) };
             output = new RichTextBox { AccessibleName = "English caption transcript", Dock = DockStyle.Fill, ReadOnly = true, BackColor = paper,
                 ForeColor = paperInk, Font = captionFont, BorderStyle = BorderStyle.None, DetectUrls = false, HideSelection = false, WordWrap = true };
@@ -257,11 +279,11 @@ namespace LiveTranslate
 
         private ModernCard BuildComposer()
         {
-            ModernCard card = LightCard(Color.FromArgb(247, 248, 252), new Padding(16, 9, 16, 10));
+            ModernCard card = LightCard(paper, new Padding(16, 9, 16, 10));
             card.Margin = new Padding(0, 10, 0, 0);
             TableLayoutPanel form = Rows(31, 0, 37);
             TableLayoutPanel heading = Columns(0, 64);
-            heading.Controls.Add(Title("Translate text", paperInk, 12F), 0, 0);
+            heading.Controls.Add(Title("Translate text", paperInk, 13F), 0, 0);
             Button paste = LightButton("Paste", delegate
             {
                 try { if (Clipboard.ContainsText()) input.Text = Clipboard.GetText(); }
@@ -270,27 +292,34 @@ namespace LiveTranslate
             DockAction(paste, new Padding(0, 0, 0, 3));
             heading.Controls.Add(paste, 1, 0);
             form.Controls.Add(heading, 0, 0);
-            input = Entry("");
+            input = new ComposerEntry { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None };
             input.AccessibleName = "Text to translate";
             input.Multiline = true;
             input.AcceptsReturn = true;
-            input.ScrollBars = ScrollBars.Vertical;
+            input.ScrollBars = ScrollBars.None;
             input.Font = new Font(Font.FontFamily, 11F);
-            input.BackColor = paper;
+            input.BackColor = Color.FromArgb(243,248,245);
             input.ForeColor = paperInk;
-            input.Margin = new Padding(0, 3, 0, 5);
+            input.Margin = Padding.Empty;
+            Panel editor = new Panel { Dock = DockStyle.Fill, BackColor = input.BackColor, Padding = new Padding(9, 6, 5, 4), Margin = new Padding(0, 3, 0, 5) };
+            editor.Paint += delegate(object sender, PaintEventArgs paint) { ControlPaint.DrawBorder(paint.Graphics, editor.ClientRectangle, input.Focused ? violet : Color.FromArgb(197,214,207), ButtonBorderStyle.Solid); };
+            input.Enter += delegate { editor.Invalidate(); };
+            input.Leave += delegate { editor.Invalidate(); };
+            input.TextChanged += delegate { UpdateTranslateAction(); };
             input.KeyDown += delegate(object sender, KeyEventArgs e)
             {
                 if (e.KeyData == (Keys.Control | Keys.Enter)) { e.SuppressKeyPress = true; TranslateInput(); }
             };
-            form.Controls.Add(input, 0, 1);
+            editor.Controls.Add(input);
+            form.Controls.Add(editor, 0, 1);
             TableLayoutPanel footer = Columns(0, 185);
             Button example = LightButton("Try example", delegate { InsertExample(); });
             example.Width = 107;
             example.Anchor = AnchorStyles.Left;
             example.Margin = Padding.Empty;
             footer.Controls.Add(example, 0, 0);
-            Button translate = MakeButton("Translate to English", delegate { TranslateInput(); }, true);
+            Button translate = translateButton = MakeButton("Translate to English", delegate { TranslateInput(); }, true);
+            ((ModernButton)translate).Symbol = ButtonSymbol.Arrow;
             translate.BackColor = violet;
             translate.ForeColor = Color.White;
             translate.FlatAppearance.BorderColor = violet;
@@ -305,7 +334,25 @@ namespace LiveTranslate
         private void TranslateInput()
         {
             if (String.IsNullOrWhiteSpace(input.Text)) { SetStatus("Type or paste text first."); input.Focus(); return; }
-            Send("translate", Dict("text", input.Text, "source", TextSource()));
+            if (!connected || SetupRunning() || profileBusy) { SetStatus("Wait for the local engine before translating text."); return; }
+            string source = TextSource(), text = input.Text.Trim();
+            if (IsTypedRequestPending(text, source)) return;
+            if (Send("translate", Dict("text", text, "source", source))) UpdateTranslateAction();
+        }
+
+        private bool IsTypedRequestPending(string text, string source)
+        {
+            foreach (PendingRequest request in pending.Values)
+                if (request.TypedText == text && request.TypedSource == source) return true;
+            return false;
+        }
+
+        private void UpdateTranslateAction()
+        {
+            if (translateButton == null) return;
+            bool inFlight = !String.IsNullOrWhiteSpace(input.Text) && IsTypedRequestPending(input.Text.Trim(), TextSource());
+            translateButton.Text = inFlight ? "Translating…" : "Translate to English";
+            translateButton.Enabled = connected && !profileBusy && !SetupRunning() && !inFlight && !String.IsNullOrWhiteSpace(input.Text);
         }
 
         private void UpdateTranscriptTools()
@@ -348,7 +395,7 @@ namespace LiveTranslate
         private ModernCard LightCard(Color fill, Padding inset)
         {
             ModernCard card = Card(fill);
-            card.BorderColor = Color.FromArgb(207, 213, 226);
+            card.BorderColor = Color.FromArgb(199, 216, 209);
             card.Padding = inset;
             return card;
         }

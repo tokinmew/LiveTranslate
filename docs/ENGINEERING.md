@@ -1,5 +1,11 @@
 # LiveTranslate developer and acceptance notes
 
+## 0.6.6 interaction and release checks
+
+The Windows tests create the actual dashboard controls with generated events. Tests cover scrolling and selecting older captions under load, the 180-entry transcript bound, device-list refresh after a worker restart, and a selected display disappearing. The monitor disconnect fixture verifies the selected capture area remains the user's choice throughout a reconnect.
+
+The synthetic image fixtures exercise offline OCR, translation, event delivery, repeated-text suppression and clearing the overlay. Replay uses generated text panels. Speech-failure tests inject recognition results into the session. Physical listening, headset pinning and end-to-end speech recognition require separate measurements.
+
 The existing 0.6.x application is the baseline. Retain its release numbering and supported upgrade path. English is the translation target. Traditional Chinese, Simplified Chinese, Japanese and Korean are the bundled priorities. Additional Asian and European selections show availability by speech, text and screen input.
 
 ## Data flow

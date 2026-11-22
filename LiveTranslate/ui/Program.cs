@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.6.5.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.5.0")]
+[assembly: System.Reflection.AssemblyVersion("0.6.6.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.6.6.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -73,6 +73,7 @@ namespace LiveTranslate
         public string Command;
         public string Session;
         public string Channel;
+        public string TypedText, TypedSource;
         public PendingRequest(string command, string session, string channel)
         {
             Command = command;
@@ -99,17 +100,17 @@ namespace LiveTranslate
 
     internal sealed partial class MainForm : Form
     {
-        private readonly Color background = Color.FromArgb(232, 236, 243);
-        private readonly Color surface = Color.FromArgb(31, 36, 54);
-        private readonly Color field = Color.FromArgb(46, 53, 75);
+        private readonly Color background = Color.FromArgb(237, 243, 241);
+        private readonly Color surface = Color.FromArgb(23, 45, 48);
+        private readonly Color field = Color.FromArgb(39, 67, 69);
         private readonly Color ink = Color.FromArgb(249, 250, 254);
-        private readonly Color muted = Color.FromArgb(190, 198, 217);
-        private readonly Color accent = Color.FromArgb(184, 178, 255);
-        private readonly Color border = Color.FromArgb(72, 81, 103);
+        private readonly Color muted = Color.FromArgb(191, 213, 208);
+        private readonly Color accent = Color.FromArgb(116, 225, 194);
+        private readonly Color border = Color.FromArgb(61, 88, 89);
         private readonly Color paper = Color.White;
-        private readonly Color paperInk = Color.FromArgb(32, 38, 60);
-        private readonly Color secondaryInk = Color.FromArgb(79, 89, 111);
-        private readonly Color violet = Color.FromArgb(85, 69, 172);
+        private readonly Color paperInk = Color.FromArgb(23, 48, 51);
+        private readonly Color secondaryInk = Color.FromArgb(74, 99, 101);
+        private readonly Color violet = Color.FromArgb(17, 107, 96);
         private readonly JavaScriptSerializer json = new JavaScriptSerializer();
         private readonly object writeLock = new object ();
         private readonly Dictionary<int, PendingRequest> pending = new Dictionary<int, PendingRequest>();
@@ -132,7 +133,7 @@ namespace LiveTranslate
         private StreamWriter inputWriter;
         private int requestId;
         private bool closing, connected, profileBusy, applyingProfile, updatingDevices, updatingToggles, oneShotPending;
-        private bool audioWanted, screenWanted;
+        private bool audioWanted, screenWanted, devicesReady;
         // Watching is armed on launch, including when installation is still in progress.
         // Keep intent separate from whether a real worker session is actually running.
         private bool screenArmed = true, selectingArea, displayChangePending;
@@ -296,6 +297,7 @@ namespace LiveTranslate
                 bool editable = code == "other";
                 audioLanguage.ReadOnly = !editable;
                 ocrLanguage.ReadOnly = !editable;
+                audioLanguage.BackColor = ocrLanguage.BackColor = editable ? SystemColors.Window : SystemColors.Control;
                 customTextSource.Enabled = code == "other";
                 japaneseDirection.Visible = code == "ja";
                 if (code != "other")
@@ -320,6 +322,7 @@ namespace LiveTranslate
 
             if (restart)
             {
+                if (settingsForm.Visible) RememberProcessingSettings();
                 SetStatus("Source changed to " + ProfileName(ProfileCode()) + ". Existing English captions are kept.");
                 CancelReadOnce();
                 if (audioWanted)
@@ -330,7 +333,9 @@ namespace LiveTranslate
 
         private void ApplySettings()
         {
-            if (settingsTabs.SelectedTab == spokenTab) { settingsForm.Hide(); return; }
+            bool speechChanged = initialSpeechSettings == null || !System.Linq.Enumerable.SequenceEqual(initialSpeechSettings, SpeechSettingsValues());
+            bool screenChanged = initialScreenSettings == null || !System.Linq.Enumerable.SequenceEqual(initialScreenSettings, ScreenSettingsValues());
+            if (!speechChanged && !screenChanged) { settingsForm.Hide(); return; }
             string code = ProfileCode();
             if (code == "other")
             {
@@ -341,12 +346,12 @@ namespace LiveTranslate
             ApplyProfile(false);
             if (connected && !String.Equals(checkedOcrPath, tesseractPath.Text.Trim(), StringComparison.OrdinalIgnoreCase))
                 Send("status", null);
-            CancelReadOnce();
+            if (screenChanged) CancelReadOnce();
             SetStatus("Settings applied.");
             settingsForm.Hide();
-            if (audioWanted)
+            if (speechChanged && audioWanted)
                 RestartAudio();
-            ReconfigureScreen();
+            if (screenChanged) ReconfigureScreen();
         }
 
         private void AudioToggleChanged(object sender, EventArgs e)
@@ -400,11 +405,11 @@ namespace LiveTranslate
             if (!audioWanted)
                 return;
             Choice device = devices.SelectedItem as Choice;
-            if (!connected || device == null)
+            if (!connected || !devicesReady || device == null)
             {
                 audioWanted = false;
                 SetSwitch(audioToggle, false);
-                audioStateLabel.Text = !connected ? "Set up the local engine first." : "Choose an audio device, then enable listening.";
+                audioStateLabel.Text = !connected ? "Local engine unavailable." : !devicesReady ? "Checking available audio devices..." : "Choose an audio device, then enable listening.";
                 SetStatus(audioStateLabel.Text);
                 UpdateControls();
                 return;
@@ -496,17 +501,25 @@ namespace LiveTranslate
 
         private Screen CaptureDisplay()
         {
-            if (targetDisplay != null)
-                foreach (Screen screen in Screen.AllScreens)
-                    if (screen.DeviceName == targetDisplay)
-                        return screen;
-            return Screen.PrimaryScreen;
+            if (targetDisplay == null)
+                return Screen.PrimaryScreen;
+            foreach (Screen screen in Screen.AllScreens)
+                if (String.Equals(screen.DeviceName, targetDisplay, StringComparison.OrdinalIgnoreCase))
+                    return screen;
+            return null;
         }
 
         private Rectangle CaptureBounds()
         {
             if (selectedRegion.HasValue)
-                return selectedRegion.Value;
+            {
+                Rectangle region = selectedRegion.Value;
+                if (SystemInformation.VirtualScreen.Contains(region))
+                    foreach (Screen screen in Screen.AllScreens)
+                        if (screen.Bounds.IntersectsWith(region))
+                            return region;
+                return Rectangle.Empty;
+            }
             Screen display = CaptureDisplay();
             return display == null ? Rectangle.Empty : display.Bounds;
         }
@@ -541,7 +554,9 @@ namespace LiveTranslate
 
             if (CaptureBounds().IsEmpty)
             {
-                screenStateLabel.Text = "Waiting for a connected display.";
+                screenStateLabel.Text = selectedRegion.HasValue
+                    ? "Waiting for the selected area. Restore the display or choose a new area."
+                    : "Waiting for the selected display. Reconnect it or choose another display.";
                 return;
             }
             screenSession = NewSession();
@@ -584,7 +599,10 @@ namespace LiveTranslate
         {
             if (screenWanted)
                 StopScreen();
+            else
+                ClearOverlayChannel("screen");
             TryStartScreen();
+            UpdateControls();
         }
 
         private void StopScreen()
@@ -692,7 +710,9 @@ namespace LiveTranslate
 
         private void UpdateRegionLabel()
         {
-            if (selectedRegion.HasValue)
+            if (CaptureBounds().IsEmpty)
+                regionLabel.Text = selectedRegion.HasValue ? "Selected area unavailable" : "Selected display unavailable";
+            else if (selectedRegion.HasValue)
                 regionLabel.Text = String.Format("Area · {0} × {1}", selectedRegion.Value.Width, selectedRegion.Value.Height);
             else if (targetDisplay == null)
                 regionLabel.Text = "Primary display";
@@ -716,11 +736,6 @@ namespace LiveTranslate
                 displayChangePending = false;
                 if (closing || selectingArea)
                     return;
-                Screen display = CaptureDisplay();
-                if (display == null || display.DeviceName != targetDisplay)
-                    targetDisplay = null;
-                if (selectedRegion.HasValue && !SystemInformation.VirtualScreen.Contains(selectedRegion.Value))
-                    selectedRegion = null;
                 UpdateRegionLabel();
                 CancelReadOnce();
                 ReconfigureScreen();
@@ -831,7 +846,10 @@ namespace LiveTranslate
             PendingRequest request = null;
             int responseId;
             if (Int32.TryParse(Value(message, "id"), out responseId) && pending.TryGetValue(responseId, out request))
+            {
                 pending.Remove(responseId);
+                if (request.Command == "translate") UpdateTranslateAction();
+            }
             if (channel == "" && (type == "audio" || type == "screen" || type == "screen_once"))
                 channel = type;
             if (session == "" && request != null && request.Session != "")
@@ -896,9 +914,17 @@ namespace LiveTranslate
                     }
                 }
 
+                bool editingCustom = settingsForm.Visible && ProfileCode() == "other";
+                string draftSpeech = editingCustom ? audioLanguage.Text : null;
+                string draftOcr = editingCustom ? ocrLanguage.Text : null;
                 FillProfiles();
                 FillCustomSources();
                 ApplyProfile(false);
+                if (editingCustom && ProfileCode() == "other")
+                {
+                    audioLanguage.Text = draftSpeech;
+                    ocrLanguage.Text = draftOcr;
+                }
                 packSummary.Text = languageMetadata.Count + " individual text packs. Multilingual text model "
                     + (Flag(message, "multilingual_text_ready") ? "ready." : "not installed.") + "\nSpeech models: "
                     + (speechModels.Count == 0 ? "none" : String.Join(", ", new List<string>(speechModels).ToArray()));
@@ -921,6 +947,7 @@ namespace LiveTranslate
             }
             else if (type == "devices")
             {
+                devicesReady = true;
                 Choice oldDevice = devices.SelectedItem as Choice;
                 bool lostDevice = false;
                 updatingDevices = true;
@@ -1255,6 +1282,7 @@ namespace LiveTranslate
             // identity before a queued final line can update a new or absent engine.
             worker = null;
             connected = false;
+            devicesReady = false;
             DisposeWorkerInput();
             ended.Dispose();
             pending.Clear();
@@ -1309,7 +1337,9 @@ namespace LiveTranslate
                 id = Interlocked.Increment(ref requestId);
                 args["command"] = command;
                 args["id"] = id;
-                pending[id] = new PendingRequest(command, Value(args, "session_id"), ChannelOf(command));
+                PendingRequest request = new PendingRequest(command, Value(args, "session_id"), ChannelOf(command));
+                if (command == "translate") { request.TypedText = Value(args, "text"); request.TypedSource = Value(args, "source"); }
+                pending[id] = request;
                 lock (writeLock)
                     inputWriter.WriteLine(json.Serialize(args));
                 return true;
@@ -1479,6 +1509,8 @@ namespace LiveTranslate
         {
             if (String.IsNullOrWhiteSpace(text))
                 return;
+            TranscriptPosition position = new TranscriptPosition(output);
+            int removed = 0;
             if (history.Count == 180)
             {
                 // Rich Edit rejects selection deletions in a read-only window.
@@ -1486,7 +1518,8 @@ namespace LiveTranslate
                 output.ReadOnly = false;
                 try
                 {
-                    output.Select(0, history[0].RenderedLength);
+                    removed = history[0].RenderedLength;
+                    output.Select(0, removed);
                     output.SelectedText = "";
                 }
                 finally { output.ReadOnly = true; }
@@ -1496,7 +1529,7 @@ namespace LiveTranslate
             history.Add(entry);
             output.Select(output.TextLength, 0);
             WriteCaption(entry);
-            output.ScrollToCaret();
+            position.Restore(output, removed);
             emptyOutput.Visible = false;
             UpdateTranscriptTools();
         }
@@ -1508,13 +1541,16 @@ namespace LiveTranslate
 
         private void RenderCaptions()
         {
+            TranscriptPosition position = new TranscriptPosition(output);
+            int[] previousLengths = history.ConvertAll(delegate(CaptionEntry entry) { return entry.RenderedLength; }).ToArray();
             output.SuspendLayout();
             output.Clear();
             foreach (CaptionEntry entry in history)
                 WriteCaption(entry);
 
             output.SelectionStart = output.TextLength;
-            output.ScrollToCaret();
+            position.Reflow(previousLengths, history);
+            position.Restore(output, 0);
             output.ResumeLayout();
             emptyOutput.Visible = history.Count == 0;
             UpdateTranscriptTools();
@@ -1524,8 +1560,11 @@ namespace LiveTranslate
         {
             int start = output.TextLength;
             output.SelectionFont = labelFont;
-            output.SelectionColor = violet;
-            output.AppendText(entry.Label + "    " + entry.Time + Environment.NewLine);
+            output.SelectionColor = entry.Label == "AUDIO" ? Color.FromArgb(65, 74, 142) : violet;
+            if (entry.Label.Contains("ERROR")) output.SelectionColor = Color.FromArgb(159, 55, 53);
+            output.AppendText(entry.Label);
+            output.SelectionColor = secondaryInk;
+            output.AppendText("    " + entry.Time + Environment.NewLine);
             output.SelectionFont = captionFont;
             output.SelectionColor = paperInk;
             output.AppendText(entry.Text + Environment.NewLine);
@@ -1563,6 +1602,7 @@ namespace LiveTranslate
             Process current = worker;
             worker = null;
             connected = false;
+            devicesReady = false;
             audioWanted = false;
             screenWanted = false;
             ClearOverlayChannel("");

@@ -206,14 +206,13 @@ namespace LiveTranslate
             int gap = Scale(6, dpi);
             var xs = new List<int> {preferred.Left};
             var ys = new List<int> {preferred.Top};
-            int minY = Math.Min(workArea.Bottom - preferred.Height, workArea.Top + (workArea.Height - preferred.Height) / 2);
             foreach (Rectangle source in sources)
             {
                 if (!workArea.IntersectsWith(source)) continue;
                 xs.Add(Math.Max(workArea.Left, Math.Min(workArea.Right - preferred.Width, source.Left - preferred.Width - gap)));
                 xs.Add(Math.Max(workArea.Left, Math.Min(workArea.Right - preferred.Width, source.Right + gap)));
-                ys.Add(Math.Max(minY, Math.Min(workArea.Bottom - preferred.Height, source.Top - preferred.Height - gap)));
-                ys.Add(Math.Max(minY, Math.Min(workArea.Bottom - preferred.Height, source.Bottom + gap)));
+                ys.Add(Math.Max(workArea.Top, Math.Min(workArea.Bottom - preferred.Height, source.Top - preferred.Height - gap)));
+                ys.Add(Math.Max(workArea.Top, Math.Min(workArea.Bottom - preferred.Height, source.Bottom + gap)));
             }
             Rectangle best = preferred;
             long leastOverlap = Int64.MaxValue, leastMotion = Int64.MaxValue;

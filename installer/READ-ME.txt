@@ -9,9 +9,9 @@ Open LiveTranslate when ready to set up your runtime and models.
 
 For subsequent releases, use Settings > Updates inside LiveTranslate.
 The small existing-install update is also available for a portable copy.
-Setup handles a managed installation of the same version without resetting
-it. It preserves extra files, including installed models, when moving from
-an older managed version. Allow disk space for both copies during upgrade.
+Run the matching setup again to verify and repair missing or changed app
+files. Repair and upgrade preserve extra files, including installed models.
+Allow disk space for both copies during an upgrade or repair.
 
 Close LiveTranslate and any model setup before upgrading or uninstalling.
 Uninstall offers to keep models and user files or explicitly remove all

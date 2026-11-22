@@ -1,28 +1,36 @@
-# LiveTranslate release owner
+# LiveTranslate 0.6.6 release owner guide
 
-The development baseline is 0.6.4. Version 0.6.5 preserves the existing model directory and adds signed stable GitHub updates, optional spoken English and a per-user setup kit. Use the small application update for a prepared install.
+The **feed** directory holds the signed Windows update. **LiveTranslate-source.bundle** contains its editable source, the original 0.6.4 and 0.6.5 tags, and the 0.6.6 tag. The public key embedded in LiveTranslate verifies the release manifest. The manifest identifies the package by version, size, and SHA-256. The publisher compares every packaged source file against its release tag before publication.
 
-## Publish the prepared release
+## Preview or publish
 
-Open **publisher/Publish GitHub release.cmd** on Windows with the free GitHub CLI installed and signed into **tokinmew**. Select the signed feed supplied with this kit. Preview shows the proposed repository and artifacts before publication. The project repository must be private. The app can check the original local feed independently of GitHub.
+1. Extract the developer ZIP. With a prepared LiveTranslate installation, open **publisher/Publish GitHub release.cmd** and select **feed/latest.json** and the app’s **runtime/python.exe** when asked. To run the offline preview directly, use the first command below from the extracted kit.
+2. The preview checks the signature and matching tag. Publishing requires Git for Windows and the free GitHub CLI signed into **tokinmew** with write access to the private **tokinmew/LiveTranslate** repository. The publishing dialog asks for confirmation. Confirming allows the publisher to create the private repository if needed.
+3. Publication uploads both assets to a draft, downloads them by their GitHub IDs, verifies their bytes and source tag, and promotes the draft. It then checks GitHub’s latest stable release. On an interrupted upload, repeat with the identical signed files. A conflicting tag or asset requires a new release version or owner review. The publisher seeds main when creating an empty repo and preserves an existing main branch.
+4. In the app, choose **Settings > Updates** and select the GitHub source. Users of the private repository need read access and an authenticated GitHub CLI in Program Files. A local update from the extracted **feed** folder works offline. The app prepares a new dashboard with the Windows compiler and scans the staged files with Microsoft Defender before installation.
 
-The **LiveTranslate-source.bundle** file contains the local development history. Run `git clone --branch main LiveTranslate-source.bundle LiveTranslate-source` to open it. The publisher verifies the tagged source against the signed package before pushing the tag to the dedicated private repository. An existing main branch is preserved. The publisher README describes the sequence and retry behavior.
+```powershell
+& 'C:\path\to\LiveTranslate\runtime\python.exe' -I -B publisher/github_publish.py --dry-run --feed feed --source-bundle LiveTranslate-source.bundle
+git clone --branch main LiveTranslate-source.bundle LiveTranslate-source
+```
 
-## Build a future release
+## Rebuild or test locally
 
-Edit the app under **LiveTranslate**. Update both Windows assembly version attributes in **ui/Program.cs**. The dashboard reads the compiled version and the package publisher checks both attributes against the requested release number. Build with **Build.cmd** from the app folder. The base release installer provides the pinned Python runtime, model files and third-party licenses.
+From the cloned source directory, open **LiveTranslate/Build.cmd** to compile the Windows app. Use the prepared Python runtime when running the Python utilities. The portable build helper accepts **--app LiveTranslate**, **--base** pointing to the original verified 0.6.4 Windows Test ZIP, and **--output** pointing to a new ZIP. The original archive supplies the checked runtime, offline models, and third-party notices.
 
-From the project root, use the app's prepared Python to run `tools/publish_update.py --app LiveTranslate --version X.Y.Z --feed release`. Sign the manifest with **publisher/Sign-Release.ps1** and the existing LiveTranslate owner key. Open the GitHub publisher, review the offline preview, and use a new tag when release contents change. Reuse the same signed files when retrying an interrupted upload.
+The release includes these offline checks.
 
-The signing key for these builds is held locally at **work/LiveTranslate-owner-signer/LiveTranslate-release-v1.dpapi** under the original Windows workspace. Windows protects it for the current user. Keep a private recovery backup of the key and its Windows user profile. A different signing key requires a deliberately distributed trust update. The ZIP and Git history contain only the pinned public key.
+- **qa/Check-WindowsUI.ps1** builds the dashboard and runs synthetic Windows control, transcript, settings, and caption readability checks. It saves test images under a fresh temporary folder. The tests use generated text and controls and leave capture inputs closed.
+- **qa/live_model_screen.py** runs the screen watcher on generated Asian-language panels. **qa/qa_screen.py** measures word placement and English-only filtering across Asian and European examples. Set **LIVETRANSLATE_TEST_DATA** to the prepared app’s **data** folder and run these with its bundled Python. The broader test uses the additional tested OCR languages.
+- **installer/Test-Installer.ps1 -Python PATH** installs, upgrades, repairs, and uninstalls a generated package under a disposable directory. Its checks include model and settings retention, active model/setup locks, and user-owned shortcuts.
+- **publisher/test_github_publish.py** simulates release upload, cancellation and retry, changed assets, wrong accounts, and downgrade handling in memory.
+- **qa/upgrade_e2e.py** applies the 0.6.6 feed to two disposable copies of a 0.6.5 installation using a local folder and simulated private GitHub responses. Provide the kit’s feed path, **--old-app** pointing to the extracted 0.6.5 app, and **--ocr-model** pointing to a checked Japanese OCR file if needed. The harness verifies the native file version, source hashes, retained settings and model, and the official signature.
 
-GitHub Free supports private repositories. This workflow runs compilation, signing and publishing on the owner's PC and uses no hosted Actions runner. The noncommercial terms on the optional NLLB model still apply independently.
+## Prepare another update
 
-## Verification for this version
+1. Edit the app under **LiveTranslate**. Set both assembly version attributes in **ui/Program.cs**. Build and test the application and create a new signed feed for a stable three-part version.
+2. In the source checkout, run the bundled Python with `tools/publish_update.py --app LiveTranslate --version X.Y.Z --feed release`. Run **publisher/Sign-Release.ps1** with the existing release key. Keep the private key on the owner’s Windows profile and protect its recovery backup. The developer ZIP contains only the verifier and public key.
+3. Commit the matching sources, tag the exact release commit with **vX.Y.Z**, then run `git bundle create LiveTranslate-source.bundle refs/heads/main refs/tags/vX.Y.Z`. Keep earlier tags in a complete archival bundle by passing their refs as well. Supply the new signed feed and source bundle to the offline preview before publishing.
+4. For a downloadable upgrade ZIP for older prepared 0.6.x installations, run `tools/build_small_update.py release LiveTranslate-X.Y.Z-Existing-Install-Update.zip`. For a fresh per-user installer, run `installer/build_kit.py --portable PORTABLE.zip --output SetupKit.zip --version X.Y.Z`, followed by `installer/bundle_setup.py SetupKit.zip PORTABLE.zip Windows-Setup.zip`. Place the correctly named **LiveTranslate-X.Y.Z-Windows-Test.zip** inside the combined setup.
 
-The published source and release-asset API contracts were checked against GitHub's documentation. PCrisk's November 14 check reported 0/93 threat-engine detections for github.com, ScamAdviser displayed “Very Likely Safe,” and AdGuard reported no Google or Yandex Safe Browsing listing. These results concern the website. The local Windows files were checked separately. The code uses installed Windows SAPI and CryptoAPI. No new third-party binaries or AI weights were downloaded for 0.6.5.
-
-The final 0.6.5 release passed real installer and uninstaller checks under a disposable profile, 360 application regression cases, and signature and asset corruption rejection. Actual 0.6.4 and simulated private GitHub update paths both compiled with Windows, scanned the staged files with Defender, applied 103 source files, preserved settings and a checked Japanese OCR file, and recognized the newly installed version. The new English voice synthesized a 2.43-second sentence locally. Physical headset routing and live private publication require separate checks.
-
-- GitHub release APIs and plans. https://docs.github.com/en/rest/releases and https://docs.github.com/en/get-started/learning-about-github/githubs-plans
-- Site reports. https://scanner.pcrisk.com/scan-results/github.com and https://www.scamadviser.com/check-website/github.com and https://reports.adguard.com/en/github.com/report.html
+Microsoft Defender runs on the newly prepared local update. The publisher also verifies asset digests and the official signature. No release, credentials, or test fixtures need to leave the machine for the offline preview or synthetic tests. Consult the included app guide for the licenses applicable to each optional model.

@@ -585,7 +585,12 @@ class Worker:
         segments = foreign_segments(text, source)
         if not segments:
             return {"text": "", "language": language, "ignored": True}
-        quality = self._quality_translation([value for _, value in segments], language)
+        try:
+            quality = self._quality_translation([value for _, value in segments], language)
+        except (OSError, RuntimeError, ValueError):
+            # One rejected utterance must not close every input device. The
+            # next utterance can still use the already-loaded optional model.
+            quality = None
         if quality is not None:
             return quality if quality["text"] else None
         with self.text_lock:
@@ -599,7 +604,11 @@ class Worker:
                 return None
             segments = [(source, self.text.convert_chinese(value, source) if language == "zh" else value)
                         for _, value in segments]
-        _, result = self._translate_segments(segments, source, quality_korean=False)
+        try:
+            _, result = self._translate_segments(segments, source, quality_korean=False)
+        except (OSError, RuntimeError, ValueError):
+            # The speech decoder can translate the approved time span directly.
+            return None
         # Let the speech decoder retry when the standard text pack echoes the source.
         return None if result.get("ignored") else result
 

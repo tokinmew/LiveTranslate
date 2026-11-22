@@ -1,4 +1,12 @@
-# LiveTranslate 0.6.5 for Windows 11 x64
+# LiveTranslate 0.6.6 for Windows 11 x64
+
+## Reading live captions
+
+Choose the source language and turn on the inputs you want. **Watch screen** places English over detected text. **Auto listen** translates your microphone, computer audio, or both, depending on the selected audio source. The language picker shows which inputs have their files ready.
+
+The **Live captions** transcript follows new translations until you scroll up or select text to copy. Scroll back to the bottom to follow the conversation again. The dashboard retains the newest 180 entries. Use **Source text** to check a translation against the original.
+
+Open **VR captions** to view translations in a separate window. Long captions advance through their lines automatically. Interacting with the text lets you read at your own pace. If a selected monitor disappears, screen capture waits for that display. Choose a different capture area to switch immediately.
 
 ## Spoken English and updates
 

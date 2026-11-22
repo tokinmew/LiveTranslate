@@ -135,6 +135,23 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual("English result", second["text"])
         self.assertEqual(1, sum("repair" in event.get("message", "") for event in self.events))
 
+    def test_one_optional_inference_failure_does_not_end_listening(self):
+        from unittest.mock import Mock
+        engine = Mock(name="optional")
+        engine.name = "nllb"
+        engine.translate_many.side_effect = [RuntimeError("synthetic inference failure"), ["Here is the station."]]
+        with patch("speech_translation.load_local_model", return_value=engine):
+            self.assertTrue(self.worker._translate_speech_source("Already English", "ja")["ignored"])
+            self.assertEqual("English result", self.worker._translate_speech_source("駅に着きました。", "ja")["text"])
+            self.assertEqual("Here is the station.", self.worker._translate_speech_source("ここが駅です。", "ja")["text"])
+        self.assertEqual(2, engine.translate_many.call_count)
+
+    def test_standard_inference_failure_releases_approved_speech_to_decoder(self):
+        with patch.object(self.worker, "_quality_translation", return_value=None), \
+                patch.object(self.worker.text, "translate", side_effect=ValueError("synthetic bad input")):
+            self.assertIsNone(self.worker._translate_speech_source("駅まで歩きます。", "ja"))
+            self.assertTrue(self.worker._translate_speech_source("English only", "ja")["ignored"])
+
     def test_stop_cancels_audio_start_waiting_in_queue(self):
         self.worker.dispatch({"command": "start_audio", "device_id": 4})
         pending = self.worker.jobs.get_nowait()

@@ -103,7 +103,9 @@ function Check-Idle([string]$appDir) {
     foreach ($name in @('.livetranslate-update/transaction.json')) {
         if ([IO.File]::Exists((Under $appDir $name))) { throw 'Open LiveTranslate to finish its pending update, then close it and retry.' }
     }
-    foreach ($name in @('.livetranslate-update/run.lock','.livetranslate-update/install.lock','model-test-results/offline-setup.lock','model-staging/quality/setup.lock')) {
+    foreach ($name in @('.livetranslate-update/run.lock','.livetranslate-update/install.lock','setup.lock',
+                        'model-test-results/offline-setup.lock','model-test-results/model-fetch.lock',
+                        'data/.model-test.lock','model-staging/quality/setup.lock')) {
         $lock = Under $appDir $name
         Plain-Path $lock
         if ([IO.File]::Exists($lock)) {
@@ -117,9 +119,12 @@ function Check-Idle([string]$appDir) {
     }
 }
 
-function Setup-Links([string]$menu,[string]$appDir,[bool]$remove) {
+function Setup-Links([string]$menu,[string]$appDir,[bool]$remove,[bool]$checkOnly=$false) {
     Plain-Path $menu
-    [void][IO.Directory]::CreateDirectory($menu)
+    if (![IO.Directory]::Exists($menu)) {
+        if ($remove -or $checkOnly) { return }
+        [void][IO.Directory]::CreateDirectory($menu)
+    }
     $shell = New-Object -ComObject WScript.Shell
     $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     try {
@@ -128,10 +133,14 @@ function Setup-Links([string]$menu,[string]$appDir,[bool]$remove) {
             Plain-Path $linkFile
             if ($title -eq 'LiveTranslate') { $target = Under $appDir 'Start.cmd'; $arguments = '' }
             else { $target = $ps; $arguments = '-NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File "'+(Under $appDir '.lt-setup/Setup.ps1')+'" -Uninstall' }
-            if ($remove -and ![IO.File]::Exists($linkFile)) { continue }
+            if (($remove -or $checkOnly) -and ![IO.File]::Exists($linkFile)) { continue }
             $link = $shell.CreateShortcut($linkFile)
             try {
-                if ([IO.File]::Exists($linkFile) -and ($link.TargetPath -ine $target -or $link.Arguments -ine $arguments)) { throw "A different shortcut exists at $linkFile" }
+                if ([IO.File]::Exists($linkFile) -and ($link.TargetPath -ine $target -or $link.Arguments -ine $arguments)) {
+                    if ($remove) { continue }
+                    throw "A different shortcut exists at $linkFile"
+                }
+                if ($checkOnly) { continue }
                 if ($remove) { [IO.File]::Delete($linkFile) }
                 else {
                     $link.TargetPath = $target
@@ -146,6 +155,21 @@ function Setup-Links([string]$menu,[string]$appDir,[bool]$remove) {
         }
     } finally { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) }
     if ($remove -and @([IO.Directory]::GetFileSystemEntries($menu)).Length -eq 0) { [IO.Directory]::Delete($menu) }
+}
+
+function Test-InstalledRelease([string]$appDir,$records) {
+    foreach ($record in $records.Values) {
+        $path = Under $appDir $record[0]
+        Plain-Path $path
+        if (![IO.File]::Exists($path) -or ([IO.FileInfo]$path).Length -ne [long]$record[1] -or
+            (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine $record[2]) { return $false }
+    }
+    foreach ($pair in @(@('.lt-setup/files.json',$listPin),@('.lt-setup/Setup.ps1',(Get-FileHash -LiteralPath $setupFile -Algorithm SHA256).Hash))) {
+        $path = Under $appDir $pair[0]
+        Plain-Path $path
+        if (![IO.File]::Exists($path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine $pair[1]) { return $false }
+    }
+    return $true
 }
 
 function Open-Managed([string]$base,[bool]$freshAllowed) {
@@ -170,15 +194,17 @@ function Install-Portable([string]$source,[string]$base,[string]$menu) {
     $guard = Open-Managed $base $true
     try {
         $appDir = Under $base 'app'; $stage = Under $base 'stage'; $previous = Under $base 'previous'
+        $actual = $null
         foreach ($p in @($appDir,$stage,$previous)) { Plain-Path $p }
         if ([IO.Directory]::Exists($previous) -and ![IO.Directory]::Exists($appDir)) { [IO.Directory]::Move($previous,$appDir) }
+        Setup-Links $menu $appDir $false $true
         if ([IO.Directory]::Exists($appDir)) {
             Check-Idle $appDir
             $exe = Under $appDir 'LiveTranslate.exe'
             if ([IO.File]::Exists($exe)) {
                 $ver = [Diagnostics.FileVersionInfo]::GetVersionInfo($exe)
                 $actual = [version]::new($ver.FileMajorPart,$ver.FileMinorPart,$ver.FileBuildPart)
-                if ($actual -ge $releaseVersion) {
+                if ($actual -gt $releaseVersion -or ($actual -eq $releaseVersion -and (Test-InstalledRelease $appDir $records))) {
                     Setup-Links $menu $appDir $false
                     Remove-ManagedTree $base 'previous'
                     Remove-ManagedTree $base 'stage'
@@ -194,7 +220,9 @@ function Install-Portable([string]$source,[string]$base,[string]$menu) {
             if ([IO.Directory]::Exists($appDir)) {
                 $oldList = Under $appDir '.lt-setup/files.json'
                 $oldNames = @{}
-                if ([IO.File]::Exists($oldList)) { foreach ($row in ([IO.File]::ReadAllText($oldList) | ConvertFrom-Json)) { $oldNames[[string]$row[0]] = $true } }
+                # The current kit already identifies every owned file for a
+                # same-version repair, even if its installed file list broke.
+                if ($actual -ne $releaseVersion -and [IO.File]::Exists($oldList)) { foreach ($row in ([IO.File]::ReadAllText($oldList) | ConvertFrom-Json)) { $oldNames[[string]$row[0]] = $true } }
                 foreach ($file in (Walk-Files $appDir)) {
                     $name = $file.Substring($appDir.Length+1).Replace('\','/')
                     if ($name.StartsWith('.lt-setup/') -or $name.StartsWith('.livetranslate-update/') -or $records.ContainsKey($name) -or $oldNames.ContainsKey($name)) { continue }
