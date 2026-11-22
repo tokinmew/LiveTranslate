@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -15,13 +16,23 @@ namespace LiveTranslate
     internal sealed partial class MainForm
     {
         private TextBox updateSource;
-        private Label updateState, updateSourceLabel;
+        private Label updateState, updateSourceLabel, updateSourceHint;
         private bool managedReleaseSource, preparingUpdate, waitingForInstaller;
-        private Button checkUpdates, installUpdate, cancelUpdate, browseUpdate, defaultUpdate;
+        private Button checkUpdates, installUpdate, cancelUpdate, browseUpdate, defaultUpdate, githubUpdate;
         private ProgressBar updateActivity;
         private CancellationTokenSource updateJob;
         private string offeredVersion, offeredDigest;
         private bool restartCommitted;
+        private const string ProjectRepository = "https://github.com/tokinmew/LiveTranslate";
+        private static readonly Regex GithubRepository = new Regex(
+            @"\Ahttps://github\.com/[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?/(?<repo>[a-z0-9._-]{1,100})/?\z",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        private static bool IsGithubRepository(string value)
+        {
+            Match match = GithubRepository.Match(value);
+            return match.Success && match.Groups["repo"].Value != "." && match.Groups["repo"].Value != "..";
+        }
 
         private static string UpdateRoot { get { return AppDomain.CurrentDomain.BaseDirectory; } }
         private static string FeedPreference { get { return Path.Combine(UpdateRoot, "data", "app-update-source.txt"); } }
@@ -54,7 +65,13 @@ namespace LiveTranslate
                 Uri uri;
                 if (value.IndexOf('\\') >= 0 || !Uri.TryCreate(value, UriKind.Absolute, out uri) ||
                     uri.Host.Length == 0 || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0)
-                    throw new InvalidDataException("Enter a manifest URL without credentials, query parameters or a fragment.");
+                    throw new InvalidDataException("Enter a repository or manifest URL without credentials, a query or a fragment.");
+                if (uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) && !uri.AbsolutePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!IsGithubRepository(value))
+                        throw new InvalidDataException("Use the GitHub repository address, such as https://github.com/OWNER/REPO.");
+                    return value.TrimEnd('/');
+                }
                 if (localHttp)
                 {
                     string authority = value.Substring("http://".Length).Split('/')[0];
@@ -140,26 +157,32 @@ namespace LiveTranslate
             updateSourceLabel = new Label { AutoSize = true, Margin = new Padding(0, 0, 0, 4) };
             layout.Controls.Add(updateSourceLabel, 0, 1);
             updateSource = new TextBox { Dock = DockStyle.Top, BackColor = field, ForeColor = ink, Text = ReadUpdateSource(out managedReleaseSource),
-                AccessibleName = "Update manifest path or server URL", Margin = new Padding(0, 0, 0, 6) };
+                AccessibleName = "GitHub repository, server URL or manifest file", Margin = new Padding(0, 0, 0, 6) };
             layout.Controls.Add(updateSource, 0, 2);
             var sources = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0) };
-            browseUpdate = UpdateButton("Browse…");
+            githubUpdate = UpdateButton("GitHub Releases");
+            githubUpdate.Click += delegate { SetReleaseSource(ProjectRepository, false); };
+            browseUpdate = UpdateButton("Choose manifest");
             browseUpdate.Click += delegate
             {
                 using (var d = new OpenFileDialog { Filter = "Update manifests (*.json)|*.json", CheckFileExists = true })
                     if (d.ShowDialog(settingsForm) == DialogResult.OK) SetReleaseSource(d.FileName, false);
             };
-            defaultUpdate = UpdateButton("Use default");
+            defaultUpdate = UpdateButton("Use local default");
             defaultUpdate.Click += delegate { SetReleaseSource(DefaultFeed(), true); };
+            sources.Controls.Add(githubUpdate);
             sources.Controls.Add(browseUpdate);
             sources.Controls.Add(defaultUpdate);
             layout.Controls.Add(sources, 0, 3);
+            updateSourceHint = new Label { AutoSize = true, MaximumSize = new Size(525, 0),
+                ForeColor = ink, Margin = new Padding(0, 6, 0, 0) };
+            layout.Controls.Add(updateSourceHint, 0, 4);
             updateState = new Label { Text = LastUpdateResult(),
                 AutoSize = true, MaximumSize = new Size(540, 0), ForeColor = ink, Margin = new Padding(0, 16, 0, 6) };
-            layout.Controls.Add(updateState, 0, 4);
+            layout.Controls.Add(updateState, 0, 5);
             updateActivity = new ProgressBar { Dock = DockStyle.Top, Height = 6, MarqueeAnimationSpeed = 0,
                 Style = ProgressBarStyle.Blocks, Margin = new Padding(0, 2, 0, 8) };
-            layout.Controls.Add(updateActivity, 0, 5);
+            layout.Controls.Add(updateActivity, 0, 6);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0) };
             checkUpdates = UpdateButton("Check for updates");
             installUpdate = UpdateButton("Download and restart");
@@ -170,7 +193,7 @@ namespace LiveTranslate
             actions.Controls.Add(checkUpdates);
             actions.Controls.Add(installUpdate);
             actions.Controls.Add(cancelUpdate);
-            layout.Controls.Add(actions, 0, 6);
+            layout.Controls.Add(actions, 0, 7);
             updateSource.TextChanged += delegate
             {
                 managedReleaseSource = String.IsNullOrWhiteSpace(updateSource.Text);
@@ -208,11 +231,15 @@ namespace LiveTranslate
         private void RefreshUpdateActions()
         {
             bool busy = updateJob != null;
-            string address = updateSource.Text.TrimStart();
+            string address = updateSource.Text.Trim();
+            bool github = IsGithubRepository(address);
             updateSourceLabel.Text = managedReleaseSource ? "Local release server · starts on demand" :
+                github ? "GitHub repository · latest stable release" :
                 address.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase) ? "Local HTTP release server" :
                 address.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? "HTTPS release server" : "Update manifest file";
-            checkUpdates.Enabled = browseUpdate.Enabled = defaultUpdate.Enabled = updateSource.Enabled = !busy;
+            updateSourceHint.Visible = github;
+            updateSourceHint.Text = github ? "Use a repository that publishes LiveTranslate releases. For a private repository, sign in to GitHub CLI (gh auth login) with an account that has read access." : "";
+            checkUpdates.Enabled = browseUpdate.Enabled = defaultUpdate.Enabled = githubUpdate.Enabled = updateSource.Enabled = !busy;
             installUpdate.Enabled = !busy && offeredVersion != null && offeredDigest != null;
             cancelUpdate.Enabled = busy && !preparingUpdate && !restartCommitted;
             cancelUpdate.Visible = cancelUpdate.Enabled;
@@ -259,7 +286,7 @@ namespace LiveTranslate
                         long size; Int64.TryParse(Value(result, "size"), out size);
                         offeredVersion = v; offeredDigest = digest;
                         string downloadSize = size > 0 ? " (" + (size / 1048576.0).ToString("0.##", CultureInfo.CurrentCulture) + " MiB)" : "";
-                        updateState.Text = "Version " + v + " is available" + downloadSize + ". Live translation will pause during restart.";
+                        updateState.Text = (IsGithubRepository(source) ? "GitHub release v" : "Version ") + v + " is available" + downloadSize + ". Live translation will pause during restart.";
                     }
                     else updateState.Text = "You're up to date. Installed version " + installed + ".";
                     try { SaveUpdateSource(source, serveLocal); }

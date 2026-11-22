@@ -1,4 +1,12 @@
-# LiveTranslate 0.6.4 for Windows 11 x64
+# LiveTranslate 0.6.5 for Windows 11 x64
+
+## Spoken English and updates
+
+Open **Settings → Spoken English** to hear accepted voice translations through a locally installed English voice. Spoken output starts off. Choose your headset or Windows output there and keep **Auto listen** enabled for the input you want translated. Rate and volume affect the generated voice. English-only input stays filtered. Background dialogue, music, and microphone pickup of speaker playback can reduce recognition accuracy.
+
+Use **Settings → Updates** to keep following the current local feed or choose **GitHub Releases**. The official project address is https://github.com/tokinmew/LiveTranslate. Private releases become available after the owner creates the dedicated private repository and publishes the signed assets. Private downloads require the free GitHub CLI signed into an account with access. The local feed also supports offline updates. The app displays its installed version on the Updates page.
+
+The official GitHub stable feed is pinned to this project's RSA-3072 public key. The client verifies the publisher signature and downloaded source hashes before compiling, scanning and installing a newer version. A custom local or HTTPS feed has its own trust requirements. Choose one only if you trust its publisher to supply application code.
 
 Translate your screen, pasted text, microphone or computer audio into English. Recognition and translation run on your PC. The searchable language picker puts Asian languages first, with Traditional Chinese, Simplified Chinese, Japanese and Korean at the top. Each language shows availability separately for speech, text and screen.
 

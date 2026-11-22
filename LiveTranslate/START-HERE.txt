@@ -1,4 +1,10 @@
-LiveTranslate 0.6.4 for Windows 11 x64
+LiveTranslate 0.6.5 for Windows 11 x64
+
+For spoken translations, open Settings and Spoken English. Select an
+installed English voice and an output device, then enable spoken playback.
+For updates, open Settings and Updates. The local feed works immediately.
+The optional official GitHub source requires a published private release
+and a GitHub CLI account that can read it.
 
 1. Right-click the ZIP and choose Extract All. Choose a writable local folder
    with about 3 GB free. Inside LiveTranslate, double-click Start.cmd.

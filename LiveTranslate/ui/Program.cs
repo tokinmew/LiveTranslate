@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.6.4.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.4.0")]
+[assembly: System.Reflection.AssemblyVersion("0.6.5.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.6.5.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -179,6 +179,7 @@ namespace LiveTranslate
             BindCaptionLayers();
             BuildSettings();
             BuildUpdatesTab();
+            BuildSpokenTab();
             BuildUi();
             ResumeLayout(true);
             Load += delegate { FitToDisplay(this); };
@@ -329,6 +330,7 @@ namespace LiveTranslate
 
         private void ApplySettings()
         {
+            if (settingsTabs.SelectedTab == spokenTab) { settingsForm.Hide(); return; }
             string code = ProfileCode();
             if (code == "other")
             {
@@ -739,6 +741,7 @@ namespace LiveTranslate
 
         private void ClearOverlayChannel(string channel)
         {
+            if (channel == "" || channel == "audio") StopSpoken();
             ClearVrCaption(channel);
             if (channel == "" || channel == "screen") screenCaptions.Clear();
             if (channel == "" || channel == "audio") captionOverlay.ClearCaption();
@@ -1018,6 +1021,7 @@ namespace LiveTranslate
                 bool outsideLiveSources = type == "audio" ? !PriorityProfile(language) && !speechSources.Contains(language)
                     : type != "result" && language != "mul" && !PriorityProfile(language) && !profiles.ContainsKey(language);
                 bool ignored = Flag(message, "ignored") || english || outsideLiveSources || String.IsNullOrWhiteSpace(Value(message, "text"));
+                if (type == "audio" && spokenQueue != null && spokenQueue.IsOwnVoice(Value(message, "original"), voiceClock.ElapsedMilliseconds)) ignored = true;
                 // A one-shot read can finish after a newer watch frame. Its result still
                 // belongs in the transcript; the active watcher owns the screen overlay.
                 bool drivesScreenOverlay = type == "screen" || (type == "screen_once" && !screenWanted);
@@ -1030,6 +1034,7 @@ namespace LiveTranslate
                     {
                         if (type == "audio" || type == "result" || drivesScreenOverlay)
                             PresentVrCaption(type == "result" ? "text" : type, Value(message, "text"));
+                        if (type == "audio") SpeakTranslation(Value(message, "text"));
                         if (drivesScreenOverlay)
                             screenCaptions.Present(Items(message, "regions"), Value(message, "text"), CaptureBounds(),
                                 type == "screen_once" && !screenWanted, overlayToggle.Checked);
@@ -1612,6 +1617,7 @@ namespace LiveTranslate
             readinessTimer.Stop();
             readinessTimer.Dispose();
             CloseWorker();
+            voiceTimer.Dispose();
             captionOverlay.Dispose();
             screenCaptions.Dispose();
             if (settingsForm != null)

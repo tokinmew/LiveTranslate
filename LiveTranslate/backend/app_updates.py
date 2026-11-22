@@ -108,6 +108,8 @@ def _feed_location(feed):
 
 
 def _read(location, limit):
+    if not isinstance(location, (str, Path)):
+        return location.read(limit)  # Validated GitHub release asset reference.
     if isinstance(location, Path):
         if not location.is_file() or _reparse(location):
             raise ValueError("The configured release file is missing or is a link.")
@@ -200,8 +202,18 @@ def _active_feed(feed, serve_local):
 
 
 def _manifest(feed):
-    location = _feed_location(feed)
-    manifest = _json(_read(location, MAX_MANIFEST))
+    # Keep the local bootstrap independent of optional GitHub-only modules.
+    github = (isinstance(feed, str) and re.fullmatch(r"https://github\.com/[^/?#]+/[^/?#]+/?", feed, re.I)
+              and not feed.rstrip("/").lower().endswith(".json"))
+    if github:
+        from github_releases import release, repository
+        from release_signature import verify_official_manifest
+        tag_version, content, package = release(feed, MAX_MANIFEST, MAX_PACKAGE)
+        manifest = _json(content)
+        verify_official_manifest(repository(feed), manifest)
+    else:
+        location = _feed_location(feed)
+        manifest = _json(_read(location, MAX_MANIFEST))
     if type(manifest.get("schema")) is not int or manifest["schema"] != 1 or manifest.get("product") != PRODUCT:
         raise ValueError("This feed does not describe LiveTranslate releases.")
     version = manifest.get("version")
@@ -212,7 +224,12 @@ def _manifest(feed):
     size = manifest.get("size")
     if type(size) is not int or not 1 <= size <= MAX_PACKAGE:
         raise ValueError("Invalid update package size.")
-    if isinstance(location, Path):
+    if github:
+        if tag_version != version or package.size != size:
+            raise ValueError("GitHub release tag or asset size differs from the update manifest.")
+        if package.digest and not hmac.compare_digest(package.digest, _sha(manifest.get("sha256"))):
+            raise ValueError("GitHub release asset digest differs from the update manifest.")
+    elif isinstance(location, Path):
         package = location.parent / filename
         if package.resolve().parent != location.parent:
             raise ValueError("Update package is outside the selected feed folder.")

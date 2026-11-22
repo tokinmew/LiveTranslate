@@ -1,0 +1,20 @@
+LiveTranslate per-user setup for Windows 11 x64
+
+Extract the Windows Setup ZIP. Double-click Install LiveTranslate.cmd.
+Setup automatically finds the included portable archive. If you moved it,
+select the matching full Windows ZIP or its extracted Start.cmd.
+Setup checks the release offline and installs into your Windows profile.
+The Start menu gets LiveTranslate and Uninstall LiveTranslate entries.
+Open LiveTranslate when ready to set up your runtime and models.
+
+For subsequent releases, use Settings > Updates inside LiveTranslate.
+The small existing-install update is also available for a portable copy.
+Setup handles a managed installation of the same version without resetting
+it. It preserves extra files, including installed models, when moving from
+an older managed version. Allow disk space for both copies during upgrade.
+
+Close LiveTranslate and any model setup before upgrading or uninstalling.
+Uninstall offers to keep models and user files or explicitly remove all
+contents of the managed application directory. With Keep, any retained
+files stay under %LOCALAPPDATA%\Programs\LiveTranslate\app. Settings
+elsewhere in the Windows profile are outside this installer.

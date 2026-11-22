@@ -1,4 +1,12 @@
-# LiveTranslate 0.6.4 test results
+# LiveTranslate 0.6.5 test results
+
+The Windows dashboard compiled with the existing .NET Framework toolchain. Thirteen updater interface checks passed. Eleven simulated GitHub transport cases and 24 existing feed/transaction tests passed. Windows verified a genuine LiveTranslate RSA-3072 signature and rejected five altered manifests. The signed GitHub feed verifies the selected stable tag, exact asset IDs, package SHA-256 and release signature before applying the existing updater transaction. Live publication and a private GitHub download require a separately provisioned private repository and CLI sign-in.
+
+Nineteen playback checks passed. An actual installed English Windows voice synthesized a sentence into a temporary WAV: 2.43 seconds of 16 kHz mono audio, with 20,431 nonquiet samples. Device playback was simulated. No physical headset was exercised. Voice volume controls the generated voice. Per-application ducking, translation-only original audio suppression, and automatic avoidance of every acoustic echo remain open.
+
+The 0.6.5 compatibility sweep passed all 360 cases. The four starter translation samples retained their expected details and repeated identically. The 18-language NLLB evaluation again passed 17 detail checks and all 3,030 English-input checks. The previous two-hour 0.6.4 synthetic replay has an incomplete local receipt. It is not counted as a completed stability run.
+
+## Baseline 0.6.4 measurements
 
 ## Languages and real translation
 
