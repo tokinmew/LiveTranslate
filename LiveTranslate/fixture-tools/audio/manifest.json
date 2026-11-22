@@ -1,0 +1,26 @@
+{
+  "en": {
+    "file": "en.wav",
+    "bytes": 155624,
+    "sha256": "c7a6063fba25d80d3cee89f570cda7207f92cfcb78ec78c68b1ab6043d514c6b",
+    "source": "https://github.com/wudale/whisper-asr-server/blob/f86a51a04e5c9e6b82dc9f22c01ada4cb8c40c5f/samples/en.wav"
+  },
+  "ja": {
+    "file": "ja.wav",
+    "bytes": 179372,
+    "sha256": "03ae639eccaedb57d7dc59bfb8124da7d11f0c82c9f96d1e587b5912c04607aa",
+    "source": "https://github.com/wudale/whisper-asr-server/blob/f86a51a04e5c9e6b82dc9f22c01ada4cb8c40c5f/samples/ja.wav"
+  },
+  "ko": {
+    "file": "ko.wav",
+    "bytes": 166760,
+    "sha256": "412acdb1bfa74ccb71ca7bbe339c39b3953f9b1e931e181359380658929f8941",
+    "source": "https://github.com/wudale/whisper-asr-server/blob/f86a51a04e5c9e6b82dc9f22c01ada4cb8c40c5f/samples/ko.wav"
+  },
+  "zh": {
+    "file": "zh.wav",
+    "bytes": 152606,
+    "sha256": "7db6757d9904bb1f07b4e11a6fdbed2c38c6d60d54b3c0bd76753245c992c8b0",
+    "source": "https://github.com/wudale/whisper-asr-server/blob/f86a51a04e5c9e6b82dc9f22c01ada4cb8c40c5f/samples/zh.wav"
+  }
+}

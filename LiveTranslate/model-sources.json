@@ -1,0 +1,138 @@
+{
+  "format": 1,
+  "files": [
+    {
+      "name": "chi_sim.traineddata",
+      "kind": "ocr",
+      "language": "chi_sim",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/chi_sim.traineddata",
+      "git_blob_sha1": "388bac276d033d06e5ed5ba7a7ad14ae58f97dab",
+      "bytes": 2469156,
+      "provenance": "Official Tesseract fast model. Release tag 4.1.0 has a verified signature. The pinned Git blob ID includes its header and byte length.",
+      "source_page": "https://github.com/tesseract-ocr/tessdata_fast/blob/65727574dfcd264acbb0c3e07860e4e9e9b22185/chi_sim.traineddata"
+    },
+    {
+      "name": "chi_tra.traineddata",
+      "kind": "ocr",
+      "language": "chi_tra",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/chi_tra.traineddata",
+      "git_blob_sha1": "1955cd8b8d076b898616e9c2c1ace65b43105356",
+      "bytes": 2366642,
+      "provenance": "Official Tesseract fast model. Release tag 4.1.0 has a verified signature. The pinned Git blob ID includes its header and byte length.",
+      "source_page": "https://github.com/tesseract-ocr/tessdata_fast/blob/65727574dfcd264acbb0c3e07860e4e9e9b22185/chi_tra.traineddata"
+    },
+    {
+      "name": "jpn.traineddata",
+      "kind": "ocr",
+      "language": "jpn",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/jpn.traineddata",
+      "git_blob_sha1": "c4178f89991bde90b7fdc647e3e1901868423bd0",
+      "bytes": 2471260,
+      "provenance": "Official Tesseract fast model. Release tag 4.1.0 has a verified signature. The pinned Git blob ID includes its header and byte length.",
+      "source_page": "https://github.com/tesseract-ocr/tessdata_fast/blob/65727574dfcd264acbb0c3e07860e4e9e9b22185/jpn.traineddata"
+    },
+    {
+      "name": "jpn_vert.traineddata",
+      "kind": "ocr",
+      "language": "jpn_vert",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/jpn_vert.traineddata",
+      "git_blob_sha1": "43f38defe4b83588876d0d7a6dee928be1b73af0",
+      "bytes": 3037480,
+      "provenance": "Official Tesseract fast model. Release tag 4.1.0 has a verified signature. The pinned Git blob ID includes its header and byte length.",
+      "source_page": "https://github.com/tesseract-ocr/tessdata_fast/blob/65727574dfcd264acbb0c3e07860e4e9e9b22185/jpn_vert.traineddata"
+    },
+    {
+      "name": "kor.traineddata",
+      "kind": "ocr",
+      "language": "kor",
+      "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/65727574dfcd264acbb0c3e07860e4e9e9b22185/kor.traineddata",
+      "git_blob_sha1": "60986d44497689f3abace0b148199476d93292e1",
+      "bytes": 1677415,
+      "provenance": "Official Tesseract fast model. Release tag 4.1.0 has a verified signature. The pinned Git blob ID includes its header and byte length.",
+      "source_page": "https://github.com/tesseract-ocr/tessdata_fast/blob/65727574dfcd264acbb0c3e07860e4e9e9b22185/kor.traineddata"
+    },
+    {
+      "name": "model.bin",
+      "kind": "speech",
+      "language": "multilingual",
+      "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/model.bin",
+      "bytes": 145217532,
+      "sha256": "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9",
+      "source_page": "https://huggingface.co/Systran/faster-whisper-base/blob/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/model.bin",
+      "provenance": "SYSTRAN's multilingual CTranslate2 model. The published LFS pointer specifies the SHA-256 and exact length. The model file page displays a Safe badge."
+    },
+    {
+      "name": "config.json",
+      "kind": "speech",
+      "language": "multilingual",
+      "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json",
+      "source_page": "https://huggingface.co/Systran/faster-whisper-base/blob/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json",
+      "provenance": "SYSTRAN companion at the published revision. Git object and size verified against its tree, then SHA-256 calculated on the Defender-scanned bytes.",
+      "bytes": 2309,
+      "git_blob_sha1": "867cf1a0fece1394e01d55e287ba2f09a577c046",
+      "sha256": "56a6d8110d311f19c8f0471e562832c7527f146b567275bfca59fcf7c184da9a"
+    },
+    {
+      "name": "tokenizer.json",
+      "kind": "speech",
+      "language": "multilingual",
+      "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json",
+      "source_page": "https://huggingface.co/Systran/faster-whisper-base/blob/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json",
+      "provenance": "SYSTRAN companion at the published revision. Git object and size verified against its tree, then SHA-256 calculated on the Defender-scanned bytes.",
+      "bytes": 2203239,
+      "git_blob_sha1": "7818adb6de9fa3064d3ff81226fdd675be1f6344",
+      "sha256": "fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab"
+    },
+    {
+      "name": "vocabulary.txt",
+      "kind": "speech",
+      "language": "multilingual",
+      "url": "https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt",
+      "source_page": "https://huggingface.co/Systran/faster-whisper-base/blob/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt",
+      "provenance": "SYSTRAN companion at the published revision. Git object and size verified against its tree, then SHA-256 calculated on the Defender-scanned bytes.",
+      "bytes": 459861,
+      "git_blob_sha1": "c9074644d9d1205686f16d411564729461324b75",
+      "sha256": "34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913"
+    },
+    {
+      "name": "translate-zt_en-1_9.argosmodel",
+      "kind": "text",
+      "language": "zt",
+      "url": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/resolve/52632ee42da594912409d9a2ccc601984385de4d/translate-zt_en-1_9.argosmodel",
+      "sha256": "a9ea826d801f059dd47f1f47b6c1dc9d762519a80ea3afd2a982130a42a25486",
+      "bytes": 74498034,
+      "provenance": "Third-party Argos archive mirror uploaded by TiberiuCristianLeon. Commit-pinned Hugging Face file metadata publishes this SHA-256; its LFS history publishes the exact byte size. The hosted-file page displayed a Safe badge. The local archive matched the pinned mirror file and received a clean Defender scan during version 0.4 validation. Equivalence to the original Argos publisher binary remains unconfirmed.",
+      "source_page": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/blob/52632ee42da594912409d9a2ccc601984385de4d/translate-zt_en-1_9.argosmodel"
+    },
+    {
+      "name": "translate-zh_en-1_9.argosmodel",
+      "kind": "text",
+      "language": "zh",
+      "url": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/resolve/52632ee42da594912409d9a2ccc601984385de4d/translate-zh_en-1_9.argosmodel",
+      "sha256": "62e7af5a3a48b530e47b7b3e5c78c2de79073ecd815750d2bf3ab35b4a67da2d",
+      "bytes": 74481402,
+      "provenance": "Third-party Argos archive mirror uploaded by TiberiuCristianLeon. Commit-pinned Hugging Face file metadata publishes this SHA-256; its LFS history publishes the exact byte size. An independently hosted copy at https://huggingface.co/shethjenil/argostranslate/blob/main/translate-zh_en.argosmodel displays the identical SHA-256 and an observed Safe badge. This establishes matching hosted-file metadata, not equivalence to the original Argos publisher's binary. The local archive matched the pinned mirror file and received a clean Defender scan during version 0.4 validation. Equivalence to the original Argos publisher binary remains unconfirmed.",
+      "source_page": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/blob/52632ee42da594912409d9a2ccc601984385de4d/translate-zh_en-1_9.argosmodel"
+    },
+    {
+      "name": "translate-ko_en-1_1.argosmodel",
+      "kind": "text",
+      "language": "ko",
+      "url": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/resolve/87d203bb2f327468181aded3cfe89b2c57c5df70/translate-ko_en-1_1.argosmodel",
+      "sha256": "6da8f3db6ca40f42b1875570a1c06856f6e17c7ef62845d85de217ba548c1471",
+      "bytes": 118852077,
+      "provenance": "Third-party Argos archive mirror uploaded by TiberiuCristianLeon. Commit-pinned Hugging Face file metadata publishes this SHA-256; its LFS history publishes the exact byte size. The hosted-file page displayed a Safe badge. The local archive matched the pinned mirror file and received a clean Defender scan during version 0.4 validation. Equivalence to the original Argos publisher binary remains unconfirmed.",
+      "source_page": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/blob/87d203bb2f327468181aded3cfe89b2c57c5df70/translate-ko_en-1_1.argosmodel"
+    },
+    {
+      "name": "translate-ja_en-1_1.argosmodel",
+      "kind": "text",
+      "language": "ja",
+      "url": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/resolve/e454830629edf2141d7f2669bbdde1d2cbfbf86d/translate-ja_en-1_1.argosmodel",
+      "sha256": "623e3477959a815eb0a5ef53e09079ae8f1f9d3bbcd230473baf28c03fb83335",
+      "bytes": 117155716,
+      "provenance": "Third-party Argos archive mirror uploaded by TiberiuCristianLeon. Commit-pinned Hugging Face file metadata publishes this SHA-256; its LFS history publishes the exact byte size. The hosted-file page displayed a Safe badge. The local archive matched the pinned mirror file and received a clean Defender scan during version 0.4 validation. Equivalence to the original Argos publisher binary remains unconfirmed.",
+      "source_page": "https://huggingface.co/TiberiuCristianLeon/Argostranslate/blob/e454830629edf2141d7f2669bbdde1d2cbfbf86d/translate-ja_en-1_1.argosmodel"
+    }
+  ]
+}

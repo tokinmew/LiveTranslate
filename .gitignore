@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.exe
+*.dpapi
+*.pem
+*.key
+*.pfx
+*.p12
+LiveTranslate/data/
+LiveTranslate/runtime/

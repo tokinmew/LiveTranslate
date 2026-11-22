@@ -1,0 +1,19 @@
+LiveTranslate 0.6.4 for Windows 11 x64
+
+1. Right-click the ZIP and choose Extract All. Choose a writable local folder
+   with about 3 GB free. Inside LiveTranslate, double-click Start.cmd.
+   First launch prepares and verifies the included runtime and models.
+2. Choose a source language. Asian languages appear first. Traditional
+   and Simplified Chinese, Japanese and Korean include screen and text models.
+3. Watch screen translates words on the selected display. Choose Capture area
+   to focus on a region. Turn on Auto listen for computer audio, microphone,
+   or both. English is filtered before captions are displayed.
+4. To add written languages, open Settings and choose Get more text
+   languages. The optional checked model downloads 601 MiB and works locally.
+   It is licensed for noncommercial use. Restart the dashboard after setup.
+5. For PC VR, open VR captions. Select LiveTranslate VR captions in your
+   headset's PC desktop/window view, then pin it if your runtime supports it.
+
+Open Settings and Updates to check your private release feed.
+See README.md for controls, VALIDATION.md for results and SOURCE-CHECKS.md
+for antivirus and model-source details.
