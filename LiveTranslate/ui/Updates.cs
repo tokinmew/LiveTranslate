@@ -17,7 +17,7 @@ namespace LiveTranslate
     {
         private TextBox updateSource;
         private Label updateState, updateSourceLabel, updateSourceHint;
-        private enum ReleaseSourceMode { Automatic, Custom, ManagedLocal }
+        private enum ReleaseSourceMode { Automatic, Custom, ManagedLocal, Bundled }
         private ReleaseSourceMode releaseSourceMode;
         private bool preparingUpdate, waitingForInstaller;
         private Button checkUpdates, installUpdate, cancelUpdate, browseUpdate, defaultUpdate, githubUpdate, automaticUpdate;
@@ -30,6 +30,7 @@ namespace LiveTranslate
         private const string ProjectRepository = "https://github.com/tokinmew/LiveTranslate";
         private const string ManagedLocalPreference = "managed-local";
         private const string AutomaticPreference = "automatic";
+        private const string BundledPreference = "bundled";
         private static readonly Regex GithubRepository = new Regex(
             @"\Ahttps://github\.com/[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?/(?<repo>[a-z0-9._-]{1,100})/?\z",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -42,6 +43,7 @@ namespace LiveTranslate
 
         private static string UpdateRoot { get { return AppDomain.CurrentDomain.BaseDirectory; } }
         private static string FeedPreference { get { return Path.Combine(UpdateRoot, "data", "app-update-source.txt"); } }
+        private static string BundledManifest { get { return Path.Combine(UpdateRoot, "updates", "feed", "latest.json"); } }
 
         private static string LocalFeed()
         {
@@ -101,6 +103,11 @@ namespace LiveTranslate
                 {
                     string saved = File.ReadAllText(preference).Trim();
                     if (saved == AutomaticPreference || saved.Length == 0) return ProjectRepository;
+                    if (saved == BundledPreference)
+                    {
+                        mode = ReleaseSourceMode.Bundled;
+                        return BundledManifest;
+                    }
                     if (saved == ManagedLocalPreference)
                     {
                         mode = ReleaseSourceMode.ManagedLocal;
@@ -128,6 +135,7 @@ namespace LiveTranslate
             try
             {
                 string saved = mode == ReleaseSourceMode.ManagedLocal ? ManagedLocalPreference :
+                    mode == ReleaseSourceMode.Bundled ? BundledPreference :
                     mode == ReleaseSourceMode.Automatic ? AutomaticPreference : source;
                 File.WriteAllText(temp, saved, new UTF8Encoding(false));
                 if (File.Exists(pref)) File.Replace(temp, pref, null);
@@ -175,8 +183,8 @@ namespace LiveTranslate
                 using (var d = new OpenFileDialog { Filter = "Update manifests (*.json)|*.json", CheckFileExists = true })
                     if (d.ShowDialog(settingsForm) == DialogResult.OK) SetReleaseSource(d.FileName, ReleaseSourceMode.Custom);
             };
-            defaultUpdate = UpdateButton("Use local default");
-            defaultUpdate.Click += delegate { SetReleaseSource(LocalFeed(), ReleaseSourceMode.ManagedLocal); };
+            defaultUpdate = UpdateButton("Bundled release");
+            defaultUpdate.Click += delegate { SetReleaseSource(BundledManifest, ReleaseSourceMode.Bundled); };
             sources.Controls.Add(automaticUpdate);
             sources.Controls.Add(githubUpdate);
             sources.Controls.Add(browseUpdate);
@@ -262,6 +270,7 @@ namespace LiveTranslate
             if (address.Length == 0) address = ProjectRepository;
             bool github = IsGithubRepository(address);
             updateSourceLabel.Text = releaseSourceMode == ReleaseSourceMode.Automatic ? "Automatic updates" :
+                releaseSourceMode == ReleaseSourceMode.Bundled ? "Signed release stored with this installation" :
                 releaseSourceMode == ReleaseSourceMode.ManagedLocal ? "Local release server · starts on demand" :
                 github ? "GitHub repository · latest stable release" :
                 address.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase) ? "Local HTTP release server" :
@@ -333,6 +342,7 @@ namespace LiveTranslate
                     updateState.Text = "Checking for updates…";
                     var args = new List<string> { "check", "--feed", source, "--installed", installed };
                     if (releaseSourceMode == ReleaseSourceMode.Automatic) args.Add("--automatic");
+                    if (releaseSourceMode == ReleaseSourceMode.Bundled) args.Add("--bundled");
                     var result = await Task.Run(() => UpdateCommand(job.Token, serveLocal, args.ToArray()));
                     job.Token.ThrowIfCancellationRequested();
                     if (closing || IsDisposed) return;
@@ -354,6 +364,8 @@ namespace LiveTranslate
                         string downloadSize = size > 0 ? " (" + (size / 1048576.0).ToString("0.##", CultureInfo.CurrentCulture) + " MiB)" : "";
                         updateState.Text = (IsGithubRepository(source) ? "GitHub release v" : "Version ") + v + " is available" + downloadSize + ". Live translation will pause during restart.";
                     }
+                    else if (releaseSourceMode == ReleaseSourceMode.Bundled)
+                        updateState.Text = "Verified bundled release " + Value(result, "version") + ". Installed version " + installed + ".";
                     else if (Path.IsPathRooted(source))
                         updateState.Text = "This local feed has no newer release. Installed version " + installed + ".";
                     else updateState.Text = "You're up to date. Installed version " + installed + ".";

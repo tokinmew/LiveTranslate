@@ -301,6 +301,15 @@ def automatic_check(feed, installed, root):
             "github_status": remote_status, "github_detail": detail[:400]}
 
 
+def bundled_check(root, installed):
+    from installed_feed import installed_snapshot
+    snapshot = installed_snapshot(root)
+    # The installer also pins this digest during prepare if a newer release is
+    # selected. A file change after this check cannot change the update offer.
+    return {"ok": True, "available": _version(snapshot["version"]) > _version(installed),
+            "version": snapshot["version"], "sha256": snapshot["sha256"]}
+
+
 def _check_package(raw, manifest):
     if len(raw) != manifest["size"] or not hmac.compare_digest(hashlib.sha256(raw).hexdigest(), manifest["sha256"]):
         raise ValueError("The downloaded package did not match the release manifest.")
@@ -485,15 +494,21 @@ def main():
     parser.add_argument("--sha256")
     parser.add_argument("--serve-local", action="store_true",
                         help="start the bundled loopback release server for a local latest.json feed")
-    parser.add_argument("--automatic", action="store_true", help="check GitHub with a signed offline status fallback")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--automatic", action="store_true", help="check GitHub with a signed offline status fallback")
+    mode.add_argument("--bundled", action="store_true", help="check the signed release stored with this installation")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args()
     try:
         if args.automatic and (args.command != "check" or args.serve_local):
             raise ValueError("Automatic fallback is only available when checking the official GitHub repository.")
+        if args.bundled and (args.command != "check" or args.serve_local):
+            raise ValueError("Bundled checks use the installed release folder.")
         with _active_feed(args.feed, args.serve_local) as feed:
             if args.automatic:
                 result = automatic_check(feed, args.installed, args.root)
+            elif args.bundled:
+                result = bundled_check(args.root, args.installed)
             elif args.command == "check":
                 result = check_update(feed, args.installed, args.root)
             else:

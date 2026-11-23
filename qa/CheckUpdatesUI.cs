@@ -97,10 +97,10 @@ internal static class CheckUpdatesUI
             Check(Rejects("http://github.com/org/project"),"remote cleartext rejected");
             Check(Normalize("https://updates.example/latest.json") == "https://updates.example/latest.json","existing HTTPS manifest preserved");
             Click(Field<Button>(f,"defaultUpdate"));
-            Check(source.Text == Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LiveTranslate", "Releases", "latest.json") && Field<object>(f,"releaseSourceMode").ToString() == "ManagedLocal","select per-user local release feed");
+            string installed = Path.Combine(basePath, "updates", "feed", "latest.json");
+            Check(source.Text == installed && Field<object>(f, "releaseSourceMode").ToString() == "Bundled", "select the installed signed release without browsing");
             File.Delete(fixtureFeed);
-            CheckSource(preference, fixtureFeed, fixtureFeed, "ManagedLocal", "explicit local selection survives reopening without its manifest");
+            CheckSource(preference, fixtureFeed, installed, "Bundled", "offline selection reopens against the installation folder");
             Click(Field<Button>(f, "automaticUpdate"));
             CheckSource(preference, fixtureFeed, repo, "Automatic", "automatic selection persists independently of explicit GitHub");
             Check(Field<Label>(f, "updateSourceLabel").Text == "Automatic updates", "automatic channel is visible");
@@ -171,6 +171,15 @@ internal static class CheckUpdatesUI
             PumpUntil(() => Field<object>(window, "updateJob") == null);
             Check(!File.ReadAllLines(calls)[2].Contains("--automatic") && Field<Label>(window, "updateState").Text.Contains("No stable release"),
                 "manual GitHub checks stay on GitHub");
+            Click(Field<Button>(window, "defaultUpdate"));
+            File.WriteAllText(Path.Combine(root, "app_updates.py.fixture"),
+                json.Serialize(new { ok = true, available = false, version = "0.6.9" }));
+            Click(Field<Button>(window, "checkUpdates"));
+            PumpUntil(() => Field<object>(window, "updateJob") == null);
+            string localCall = File.ReadAllLines(calls)[3];
+            Check(localCall.Contains("--bundled") && !localCall.Contains("--serve-local") &&
+                Field<Label>(window, "updateState").Text.Contains("Verified bundled release 0.6.9"),
+                "bundled button checks the authenticated installed copy offline");
         }
         File.WriteAllText(preference, oldSource);
         using (var window = new MainForm())
