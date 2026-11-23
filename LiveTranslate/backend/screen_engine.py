@@ -551,8 +551,8 @@ class ScreenEngine:
         user32 = ctypes.windll.user32
         dwm = ctypes.windll.dwmapi
         boxes = []
-        # Source labels are created on demand after a watch request starts.
-        # Discover only the marked windows on our own dashboard's UI thread.
+        # Caption and practice windows can open after watching starts.
+        # Discover marked windows on the dashboard's UI thread each capture.
         handles = list(handles)
         threads = set()
         for handle in handles:
@@ -563,6 +563,7 @@ class ScreenEngine:
         @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         def collect(hwnd, _):
             if (user32.GetPropW(wintypes.HWND(hwnd), "LiveTranslate.VrCaption") or
+                    user32.GetPropW(wintypes.HWND(hwnd), "LiveTranslate.ReplyPractice") or
                     include_source_windows and user32.GetPropW(wintypes.HWND(hwnd), "LiveTranslate.SourceCaption")):
                 handles.append(hwnd)
             return True

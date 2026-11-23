@@ -22,6 +22,9 @@ foreach ($name in @('CheckRuntimeUI','CheckTranscript')) {
     Compile $name @('/target:exe',(Join-Path $PSScriptRoot ($name + '.cs')))
     Run-Check $name $app
 }
+Compile 'CheckReplyPractice' @('/target:exe',(Join-Path $PSScriptRoot 'reply-ui/CheckReplyPractice.cs'))
+& (Join-Path $out 'CheckReplyPractice.exe') $app (Join-Path $out 'reply-practice.png')
+if ($LASTEXITCODE) { throw "CheckReplyPractice failed." }
 Compile 'CheckSettings' (@('/target:exe','/main:CheckSettings',(Join-Path $PSScriptRoot 'settings/CheckSettings.cs')) + $sources)
 Run-Check 'CheckSettings' $out
 Compile 'DashboardCheck' (@('/target:exe','/main:DashboardCheck',(Join-Path $PSScriptRoot 'ui/DashboardCheck.cs')) + $sources)

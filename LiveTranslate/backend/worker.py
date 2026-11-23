@@ -30,6 +30,7 @@ from profiles import get_profile, profile_status, screen_languages, speech_langu
 from checked_model_setup import CheckedModelSetup, CHECKED_TEXT_CODES, CHECKED_OCR_CODES
 from foreign_text import PRIORITY, foreign_segments, script
 validate_screen_region = ScreenEngine.validate_region
+REPLY_TARGETS = list(dict.fromkeys(("zt", "zh", "ja", "ko", *NLLB_TAGS)))
 
 
 CAPTURE_COMMANDS = {"start_audio": "audio", "start_screen": "screen", "read_screen_once": "screen_once"}
@@ -198,10 +199,7 @@ class Worker:
                 self.jobs.put_nowait(item)
             except queue.Full:
                 exc = RuntimeError("Several operations are already pending. Wait for the current operation to finish.")
-                if channel:
-                    self._failure(item, exc)
-                else:
-                    raise exc
+                self._failure(item, exc)
 
     def execute(self, item):
         if self.closing.is_set():
@@ -241,6 +239,8 @@ class Worker:
         elif command == "install_profile":
             profile = get_profile(str(item.get("language", "")))
             self.install_profile(profile.code)
+        elif command == "practice_reply":
+            reply.update(type="practice_reply", **self._practice_reply(item))
         elif command == "translate":
             value = str(item.get("text", ""))
             if not value.strip():
@@ -304,7 +304,43 @@ class Worker:
                                     "ocr_languages": sorted(CHECKED_OCR_CODES), "speech_models": ["base"],
                                     "local_import_allowed": True},
                 "multilingual_text_ready": multilingual,
+                "reply_targets": REPLY_TARGETS,
                 "profiles": rows}
+
+    def _practice_reply(self, item):
+        from reply_phrases import lookup
+        target = item.get("target")
+        if not isinstance(target, str) or target not in NLLB_TAGS:
+            raise ValueError("Choose a reply language.")
+        draft = item.get("text")
+        if not isinstance(draft, str) or not draft.strip():
+            raise ValueError("Type an English reply first.")
+        draft = draft.strip()
+        if len(draft) > 500:
+            raise ValueError("Keep your reply to 500 characters or fewer.")
+        starter = lookup(draft, target)
+        if starter is not None:
+            return {**starter, "target": target, "method": "phrasebook"}
+        engine = self._quality_engine(None)
+        if engine is None:
+            raise ValueError("Free-form replies need the multilingual text pack. Open Settings, "
+                             "Language files, Get more text languages, then restart the app. "
+                             "You can practise built-in starter phrases in Chinese, Japanese, or Korean now.")
+        with self._quality_access(None):
+            translated = engine.translate_many([("en", draft)], target=target)[0]
+        if not translated:
+            raise ValueError("No translation was produced. Try rewording the reply.")
+        if target in ("zh", "zt"):
+            with self.text_lock:
+                translated = self.text.convert_chinese(translated, target)
+        # A missing local reading provider should never discard a usable translation.
+        try:
+            from reply_reading import pronunciation
+            reading = pronunciation(translated, target)
+        except Exception:
+            reading = {"pronunciation": "", "pronunciation_scheme": "",
+                       "pronunciation_note": "A pronunciation guide is unavailable for this reply."}
+        return {"target": target, "text": translated, "method": "model", **reading}
 
     def _accepts_source_line(self, value, source):
         with self.text_lock:
@@ -549,8 +585,8 @@ class Worker:
         finally:
             self.speech_translation_lock.release()
 
-    def _quality_translation(self, texts, language, request=None):
-        """Share one lazy optional model across speech and short Korean text."""
+    def _quality_engine(self, request):
+        """Load a single optional model shared by speech, captions and reply drafts."""
         if not self.speech_translation_checked:
             with self._quality_access(request):
                 if not self.speech_translation_checked:
@@ -564,7 +600,10 @@ class Worker:
                     else:
                         # An external quality install may arrive after the app starts.
                         self.speech_translation_checked = self.speech_translator is not None
-        engine = self.speech_translator
+        return self.speech_translator
+
+    def _quality_translation(self, texts, language, request=None):
+        engine = self._quality_engine(request)
         if engine is None:
             return None
         if language == "zh":

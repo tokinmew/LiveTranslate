@@ -1,8 +1,12 @@
-LiveTranslate 0.6.6 for Windows 11 x64
+LiveTranslate 0.6.7 for Windows 11 x64
 
 If you downloaded Windows Setup, extract the complete ZIP and double-click
 Install LiveTranslate.cmd. If you downloaded Existing Install Update,
 extract it, close LiveTranslate and run Enable updates.cmd.
+
+Under Translate text, choose Practice a reply for a separate pronunciation
+guide. The starter examples work offline. Custom translations use the optional
+multilingual written pack under Settings, Language files, Get more text languages.
 
 For spoken translations, open Settings and Spoken English. Select an
 installed English voice and an output device, then enable spoken playback.

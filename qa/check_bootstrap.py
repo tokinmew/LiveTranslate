@@ -28,8 +28,8 @@ def guarded_entry(script, dest):
     assert len(launched) == 1
 
 
-def test(small_zip, old_zip, runtime_folder):
-    with tempfile.TemporaryDirectory(prefix="LiveTranslate-bootstrap-") as base:
+def test(small_zip, old_zip, runtime_folder, temp_dir):
+    with tempfile.TemporaryDirectory(prefix="lt-update-", dir=temp_dir) as base:
         base = Path(base)
         dest = base/"Existing portable"
         patch = base/"Update"
@@ -68,8 +68,10 @@ if __name__ == "__main__":
         work = Path(__file__).resolve().parents[2]
         outputs = work.parent / "outputs"
         parser = argparse.ArgumentParser(description=__doc__)
-        parser.add_argument("--update", type=Path, default=outputs/"LiveTranslate-0.6.6-Existing-Install-Update.zip")
+        parser.add_argument("--update", type=Path, default=outputs/"LiveTranslate-0.6.7-Existing-Install-Update.zip")
         parser.add_argument("--original", type=Path, default=outputs/"LiveTranslate-0.6.1-Windows-Test.zip")
         parser.add_argument("--runtime", type=Path, default=work/"captions-v04/qa-installed/LiveTranslate/runtime")
+        parser.add_argument("--temp-dir", type=Path, default=Path(__file__).resolve().parent,
+                            help="Short writable path for the disposable installation")
         args = parser.parse_args()
-        test(args.update, args.original, args.runtime)
+        test(args.update, args.original, args.runtime, args.temp_dir)

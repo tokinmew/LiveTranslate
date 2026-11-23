@@ -256,6 +256,7 @@ namespace LiveTranslate
                 audioDeviceHint.Text = connected && devicesReady ? "No audio devices available" : "Waiting for audio devices";
             }
             UpdateTranslateAction();
+            RefreshPracticeControls();
             readOnce.Enabled = usable && !oneShotPending && ScreenModelsReady() && !CaptureBounds().IsEmpty;
             readOnce.Text = oneShotPending ? "Reading..." : "Read once";
             selectArea.Enabled = !setup && !profileBusy;

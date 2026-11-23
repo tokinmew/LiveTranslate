@@ -282,15 +282,21 @@ namespace LiveTranslate
             ModernCard card = LightCard(paper, new Padding(16, 9, 16, 10));
             card.Margin = new Padding(0, 10, 0, 0);
             TableLayoutPanel form = Rows(31, 0, 37);
-            TableLayoutPanel heading = Columns(0, 64);
+            TableLayoutPanel heading = Columns(0, 198);
             heading.Controls.Add(Title("Translate text", paperInk, 13F), 0, 0);
+            TableLayoutPanel textActions = Columns(126, 0);
+            Button practice = LightButton("Practice a reply", delegate { OpenReplyPractice(); });
+            practice.AccessibleDescription = "Translate your English reply and read its pronunciation.";
+            DockAction(practice, new Padding(0, 0, 8, 3));
+            textActions.Controls.Add(practice, 0, 0);
             Button paste = LightButton("Paste", delegate
             {
                 try { if (Clipboard.ContainsText()) input.Text = Clipboard.GetText(); }
                 catch (Exception ex) { SetStatus(ex.Message); }
             });
             DockAction(paste, new Padding(0, 0, 0, 3));
-            heading.Controls.Add(paste, 1, 0);
+            textActions.Controls.Add(paste, 1, 0);
+            heading.Controls.Add(textActions, 1, 0);
             form.Controls.Add(heading, 0, 0);
             input = new ComposerEntry { Dock = DockStyle.Fill, BorderStyle = BorderStyle.None };
             input.AccessibleName = "Text to translate";

@@ -1,5 +1,9 @@
 # Download sources and checks
 
+## 0.6.7 reply practice
+
+The starter examples and pronunciation code ship in the app. Custom replies use the existing optional multilingual written model. Japanese and Mandarin reading tables are derived from the previously reviewed JMdict and CC-CEDICT data sources. See the headers in **backend/reply_ja_data.py** and **backend/reply_zh_data.py** and the upstream notices in **WORD-DATA-LICENSES.txt**.
+
 ## 0.6.6 interface and caption fixes
 
 The interface uses Windows Forms, system fonts and graphics drawn by the app. This release reuses the existing model and runtime distributions. It introduces no third-party download, web font, JavaScript library or paid service.

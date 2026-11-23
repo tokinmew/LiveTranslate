@@ -1,4 +1,14 @@
-# LiveTranslate 0.6.6 test results
+# LiveTranslate 0.6.7 release testing
+
+All 20 built-in practice combinations have a translated reply, a romanized reading and an approximate English sound cue. The four choices cover Japanese, Korean and both Mandarin writing systems. The English cues approximate the sound and do not encode every phonetic distinction.
+
+For freeform replies, the installed multilingual model translated a test sentence into Japanese, Korean, Simplified Chinese, Traditional Chinese, French and Spanish. The reading module exercised those six recorded outputs. Four produced a reading and two kept the translation with an explicit message that a pronunciation guide was unavailable. The model vocabulary includes all 201 named target codes. Translation quality across all 201 targets and pronunciation usefulness with native speakers still require evaluation.
+
+The native reply window passed 22 synthetic interaction checks, including a narrow window with selectable sound guidance. The fresh-install worker protocol verified 23 responses, and desktop OCR excluded the marked practice window from both screen-scan modes. Those checks used generated inputs.
+
+The field-test guide in the developer download records the remaining desktop and headset tests. PC VR captions use a Windows window that a compatible runtime can pin. Physical headset performance remains unverified. The published GitHub path still needs a live end-to-end update on a second PC.
+
+## Earlier 0.6.6 test results
 
 | Area | Windows test result |
 | --- | --- |

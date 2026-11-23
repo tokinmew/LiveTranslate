@@ -1,4 +1,20 @@
-# LiveTranslate 0.6.6 for Windows 11 x64
+# LiveTranslate 0.6.7 for Windows 11 x64
+
+## Practice a reply
+
+On the dashboard, open **Practice a reply** under **Translate text**. Choose a **Reply language** and a **Starter phrase**, then select **Translate reply**. **Translated reply** and **Phonetic spelling** appear separately. You decide when to say or copy the reply.
+
+The four starter targets are Japanese, Korean, Simplified Chinese and Traditional Chinese. Practice the built-in examples while offline. For custom replies, prepare the optional written-language model in **Settings → Language files → Get more text languages**, then reopen the app. The model adds about 601 MiB and is licensed for noncommercial use.
+
+Each of the 20 starter choices has a romanized reading and an approximate English sound cue. Chinese uses pinyin with tone marks, Japanese uses romaji and Korean uses a Latin-alphabet reading. Use the sound cue as a starting point, especially with Mandarin tones.
+
+For custom replies, pronunciation support depends on the target and wording. If the app cannot supply a reading, you can still read and copy the translation. Custom translations use a model with 201 target language and script entries. Six targets have been exercised with that model in this release.
+
+## Field testing
+
+Start desktop testing on a cropped, mixed-language panel. Leave a foreign line beside an English line, change the foreign wording, then remove it. Check placement, stable wording, response time, clearing, and whether the English line stays visible. Use a moving subtitle and your usual monitor scaling on a second pass.
+
+For a headset test, use the PC version of VRChat. Select the Windows playback device carrying the game, enable **Auto listen**, open **VR captions**, and pin the caption window from the headset dashboard if supported. The PC VR window already exists. Pinning during play, legibility and live voice latency still need physical headset tests. Desktop-mirror OCR and game audio are independent, so you can turn Watch screen off during a voice trial.
 
 ## Reading live captions
 

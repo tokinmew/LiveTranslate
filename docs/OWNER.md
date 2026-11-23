@@ -1,6 +1,8 @@
-# LiveTranslate 0.6.6 release owner guide
+# LiveTranslate 0.6.7 release owner guide
 
-The **feed** directory holds the signed Windows update. **LiveTranslate-source.bundle** contains its editable source, the original 0.6.4 and 0.6.5 tags, and the 0.6.6 tag. The public key embedded in LiveTranslate verifies the release manifest. The manifest identifies the package by version, size, and SHA-256. The publisher compares every packaged source file against its release tag before publication.
+The **feed** directory holds the signed Windows update. **LiveTranslate-source.bundle** contains the editable source and the original tags from 0.6.4 through 0.6.7. The public key embedded in LiveTranslate verifies the release manifest. The manifest identifies the package by version, size, and SHA-256. The publisher compares every packaged source file against its release tag before publication.
+
+Use **FIELD-TEST.md** to record desktop results on Tokin's PC and physical PC VR results with A51's headset. A51 owns headset validation. Desktop work can proceed independently.
 
 ## Preview or publish
 
@@ -21,10 +23,11 @@ From the cloned source directory, open **LiveTranslate/Build.cmd** to compile th
 The release includes these offline checks.
 
 - **qa/Check-WindowsUI.ps1** builds the dashboard and runs synthetic Windows control, transcript, settings, and caption readability checks. It saves test images under a fresh temporary folder. The tests use generated text and controls and leave capture inputs closed.
+- **qa/check_reply_worker.py** checks the offline starter replies, freeform replies and incoming English suppression. Pass the prepared model directory that contains **nllb-600m-int8**. The Windows control suite also exercises the separate reply practice window.
 - **qa/live_model_screen.py** runs the screen watcher on generated Asian-language panels. **qa/qa_screen.py** measures word placement and English-only filtering across Asian and European examples. Set **LIVETRANSLATE_TEST_DATA** to the prepared app’s **data** folder and run these with its bundled Python. The broader test uses the additional tested OCR languages.
 - **installer/Test-Installer.ps1 -Python PATH** installs, upgrades, repairs, and uninstalls a generated package under a disposable directory. Its checks include model and settings retention, active model/setup locks, and user-owned shortcuts.
 - **publisher/test_github_publish.py** simulates release upload, cancellation and retry, changed assets, wrong accounts, and downgrade handling in memory.
-- **qa/upgrade_e2e.py** applies the 0.6.6 feed to two disposable copies of a 0.6.5 installation using a local folder and simulated private GitHub responses. Provide the kit’s feed path, **--old-app** pointing to the extracted 0.6.5 app, and **--ocr-model** pointing to a checked Japanese OCR file if needed. The harness verifies the native file version, source hashes, retained settings and model, and the official signature.
+- **qa/upgrade_e2e.py** applies the 0.6.7 feed to two disposable copies of a 0.6.6 installation using a local folder and simulated private GitHub responses. Provide the kit's feed path, **--old-app** pointing to the extracted 0.6.6 app, and **--ocr-model** pointing to a checked Japanese OCR file if needed. The harness verifies the native file version, source hashes, retained settings and model, and the official signature.
 
 ## Prepare another update
 

@@ -44,6 +44,6 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--portable",type=Path,required=True)
     p.add_argument("--output",type=Path,required=True)
-    p.add_argument("--version",default="0.6.6")
+    p.add_argument("--version",default="0.6.7")
     args = p.parse_args()
     build(args.portable,args.output,args.version)

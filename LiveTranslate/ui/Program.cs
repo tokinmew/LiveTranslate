@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.6.6.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.6.0")]
+[assembly: System.Reflection.AssemblyVersion("0.6.7.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.6.7.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -850,6 +850,12 @@ namespace LiveTranslate
                 pending.Remove(responseId);
                 if (request.Command == "translate") UpdateTranslateAction();
             }
+            if (type == "practice_reply" || (request != null && request.Command == "practice_reply"))
+            {
+                if (request != null && request.Command == "practice_reply")
+                    FinishPracticeReply(responseId, message);
+                return;
+            }
             if (channel == "" && (type == "audio" || type == "screen" || type == "screen_once"))
                 channel = type;
             if (session == "" && request != null && request.Session != "")
@@ -915,6 +921,7 @@ namespace LiveTranslate
                 }
 
                 bool editingCustom = settingsForm.Visible && ProfileCode() == "other";
+                UpdateReplyTargets(message);
                 string draftSpeech = editingCustom ? audioLanguage.Text : null;
                 string draftOcr = editingCustom ? ocrLanguage.Text : null;
                 FillProfiles();
@@ -1282,6 +1289,7 @@ namespace LiveTranslate
             // identity before a queued final line can update a new or absent engine.
             worker = null;
             connected = false;
+            ResetPracticeConnection();
             devicesReady = false;
             DisposeWorkerInput();
             ended.Dispose();
@@ -1602,6 +1610,7 @@ namespace LiveTranslate
             Process current = worker;
             worker = null;
             connected = false;
+            ResetPracticeConnection();
             devicesReady = false;
             audioWanted = false;
             screenWanted = false;

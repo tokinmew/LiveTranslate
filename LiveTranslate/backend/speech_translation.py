@@ -1,4 +1,4 @@
-"""Local text-to-English backends for verified, optional model directories."""
+"""Local multilingual translation using verified optional model files."""
 from pathlib import Path
 import hashlib
 from collections import OrderedDict
@@ -56,31 +56,40 @@ class NllbTranslator:
         self.tokens = sentencepiece.SentencePieceProcessor(model_proto=tokenizer_bytes)
         self._recent = OrderedDict()
 
-    def translate_many(self, phrases):
+    def translate_many(self, phrases, *, target="en"):
+        """Translate source-labelled phrases to English, or English reply drafts to a target."""
         from text_engine import _token_chunks, _sentence_parts
+        if target != "en" and target not in NLLB_TAGS:
+            raise ValueError("Choose a supported reply language.")
+        target_tag = "eng_Latn" if target == "en" else NLLB_TAGS[target]
         phrases = list(phrases)
         decoded = {}
         sources, owners = [], []
         for key in dict.fromkeys(phrases):
             lang, text = key
-            if lang not in NLLB_TAGS:
+            if target == "en" and lang in NLLB_TAGS:
+                source_tag = NLLB_TAGS[lang]
+            elif target != "en" and lang == "en":
+                source_tag = "eng_Latn"
+            else:
                 raise ValueError("This source has no multilingual text model route.")
-            conventional = standalone_translation(text, lang)
+            conventional = standalone_translation(text, lang) if target == "en" else None
             if conventional:
                 decoded[key] = [conventional]
                 continue
-            if key in self._recent:
-                self._recent.move_to_end(key)
-                decoded[key] = [self._recent[key]]
+            cache_key = (lang, text, target)
+            if cache_key in self._recent:
+                self._recent.move_to_end(cache_key)
+                decoded[key] = [self._recent[cache_key]]
                 continue
             decoded[key] = []
             for sentence in _sentence_parts(text):
                 for chunk in _token_chunks(sentence, self.tokens):
-                    sources.append([NLLB_TAGS[lang], *chunk, "</s>"])
+                    sources.append([source_tag, *chunk, "</s>"])
                     owners.append(key)
         if sources:
             limit = min(768, max(96, max(map(len, sources)) * 4 + 16))
-            results = self.model.translate_batch(sources, target_prefix=[["eng_Latn"] for _ in sources],
+            results = self.model.translate_batch(sources, target_prefix=[[target_tag] for _ in sources],
                                                  beam_size=4, max_batch_size=512, batch_type="tokens",
                                                  max_input_length=0, max_decoding_length=limit,
                                                  no_repeat_ngram_size=4)
@@ -88,13 +97,13 @@ class NllbTranslator:
                 tokens = result.hypotheses[0]
                 if len(tokens) >= limit:
                     raise ValueError("A translation reached the model output limit. Try a shorter sentence.")
-                if tokens[:1] == ["eng_Latn"]:
+                if tokens[:1] == [target_tag]:
                     tokens = tokens[1:]
                 decoded[key].append(self.tokens.decode(tokens).strip())
         values = {key: " ".join(value).strip() for key, value in decoded.items()}
         for key, value in values.items():
             if len(key[1]) <= 2048 and value:
-                self._recent[key] = value
+                self._recent[(*key, target)] = value
                 if len(self._recent) > 384:
                     self._recent.popitem(last=False)
         return [values[key] for key in phrases]

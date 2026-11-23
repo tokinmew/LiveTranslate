@@ -1,4 +1,4 @@
-"""Apply a signed release to the 0.6.5 Windows client using in-memory GitHub responses."""
+"""Apply the signed 0.6.7 release to a 0.6.6 Windows client using local fixtures."""
 from contextlib import ExitStack
 from hashlib import sha256
 import argparse
@@ -13,8 +13,10 @@ from urllib.error import HTTPError
 
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_OLD = HERE.parents[1] / "captions-v065/LiveTranslate"
+DEFAULT_OLD = HERE.parents[1] / "captions-v066/LiveTranslate"
 DEFAULT_NEW = HERE.parent / "LiveTranslate"
+OLD_VERSION = "0.6.6"
+NEW_VERSION = "0.6.7"
 
 
 def sha(data):
@@ -29,7 +31,7 @@ def check(feed, mode, old, new, ocr_model):
     url = "https://github.com/tokinmew/LiveTranslate"
     manifest_bytes = (feed / "latest.json").read_bytes()
     manifest = json.loads(manifest_bytes)
-    assert manifest["version"] == "0.6.6"
+    assert manifest["version"] == NEW_VERSION
     release_signature.verify_official_manifest("tokinmew/LiveTranslate", manifest)
     payload = (feed / manifest["package"]).read_bytes()
     assert sha(payload) == manifest["sha256"] and len(payload) == manifest["size"]
@@ -48,7 +50,7 @@ def check(feed, mode, old, new, ocr_model):
             for ident, name in ((1, "latest.json"), (2, manifest["package"])):
                 body = data[f"assets/{ident}"]
                 assets.append(dict(id=ident, name=name, state="uploaded", size=len(body), digest="sha256:" + sha(body)))
-            response = json.dumps(dict(tag_name="v0.6.6", draft=False, prerelease=False, assets=assets)).encode()
+            response = json.dumps(dict(tag_name="v"+NEW_VERSION, draft=False, prerelease=False, assets=assets)).encode()
         else:
             assert accept == "application/octet-stream"
             response = data[resource]
@@ -69,7 +71,7 @@ def check(feed, mode, old, new, ocr_model):
             changed = dict(manifest, sha256="0" * 64)
             data["assets/1"] = json.dumps(changed).encode()
             try:
-                app_updates.check_update(source, "0.6.5")
+                app_updates.check_update(source, OLD_VERSION)
             except ValueError as error:
                 assert "signature" in str(error).lower()
             else:
@@ -82,7 +84,7 @@ def check(feed, mode, old, new, ocr_model):
         for name in ("LiveTranslate.exe", "Start.cmd"):
             shutil.copyfile(old / name, app / name)
         exe = app / "LiveTranslate.exe"
-        assert app_updates._file_version(exe) == (0, 6, 5, 0)
+        assert app_updates._file_version(exe) == tuple(map(int, OLD_VERSION.split("."))) + (0,)
         baseline = sha(exe.read_bytes())
         model = app / "data/tessdata/jpn.traineddata"
         model.parent.mkdir(parents=True)
@@ -90,13 +92,13 @@ def check(feed, mode, old, new, ocr_model):
         prefs = app / "data/app-update-source.txt"
         prefs.write_text(source, "utf8")
         model_hash = sha(model.read_bytes())
-        offer = app_updates.check_update(source, "0.6.5")
+        offer = app_updates.check_update(source, OLD_VERSION)
         assert offer["available"] and offer["version"] == manifest["version"] and "assets/2" not in api_calls
-        ready = app_updates.prepare_update(app, source, "0.6.5", offer["version"], offer["sha256"])
+        ready = app_updates.prepare_update(app, source, OLD_VERSION, offer["version"], offer["sha256"])
         assert ready["ok"] and sha(exe.read_bytes()) == baseline
         update_install.apply_stage(app, ready["stage"], restart=False)
-        assert app_updates._file_version(exe) == (0, 6, 6, 0)
-        assert not app_updates.check_update(source, "0.6.6")["available"]
+        assert app_updates._file_version(exe) == tuple(map(int, NEW_VERSION.split("."))) + (0,)
+        assert not app_updates.check_update(source, NEW_VERSION)["available"]
         assert not (app / ".livetranslate-update/transaction.json").exists()
         assert prefs.read_text("utf8") == source and sha(model.read_bytes()) == model_hash
         assert api_calls.count("assets/2") == int(mode == "private-fixture")
@@ -104,7 +106,7 @@ def check(feed, mode, old, new, ocr_model):
             name = file["path"]
             assert sha((app / name).read_bytes()) == file["sha256"], name
             assert (app / name).read_text("utf-8-sig") == (new / name).read_text("utf-8-sig"), name
-        return dict(route=mode, old="0.6.5", installed="0.6.6", source_files=len(files), package_sha256=sha(payload),
+        return dict(route=mode, old=OLD_VERSION, installed=NEW_VERSION, source_files=len(files), package_sha256=sha(payload),
                     retained_ocr_sha256=model_hash, settings_preserved=True, defender_passed=True, native_compile=True,
                     signature_verified=True, network_used=False)
 
@@ -112,8 +114,8 @@ def check(feed, mode, old, new, ocr_model):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("feed", type=Path, help="Folder containing signed latest.json and the numbered package")
-    parser.add_argument("--old-app", type=Path, default=DEFAULT_OLD, help="Extracted 0.6.5 application")
-    parser.add_argument("--new-app", type=Path, default=DEFAULT_NEW, help="Released 0.6.6 source directory")
+    parser.add_argument("--old-app", type=Path, default=DEFAULT_OLD, help="Extracted previous application")
+    parser.add_argument("--new-app", type=Path, default=DEFAULT_NEW, help="Current release source directory")
     parser.add_argument("--ocr-model", type=Path, help="Checked jpn.traineddata file to retain through the update")
     args = parser.parse_args()
     old, new = args.old_app.resolve(), args.new_app.resolve()
