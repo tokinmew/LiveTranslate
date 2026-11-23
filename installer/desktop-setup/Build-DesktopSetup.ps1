@@ -24,6 +24,8 @@ $metadata = Join-Path $build 'Version.cs'
 $manifest = Join-Path $build 'desktop.manifest'
 $dashboard = Join-Path $build 'dashboard.exe'
 $compiled = Join-Path $build 'Setup.exe'
+$prefix = Join-Path $build 'Portable.prefix'
+$suffix = Join-Path $build 'Portable.suffix'
 [void][IO.Directory]::CreateDirectory($build)
 try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -46,12 +48,12 @@ try {
     if ($LASTEXITCODE) { throw 'Installation helper compilation failed.' }
     & $pythonExe -I -B (Join-Path $PSScriptRoot 'render_engine.py') $archive $launcher $build $Version
     if ($LASTEXITCODE) { throw 'Could not render the packaged installation engine.' }
-    & $compiler @common "/resource:$archive,Portable.zip" "/resource:$list,files.json" "/resource:$engine,Setup.ps1" "/resource:$launcher,LiveTranslate.Launcher.exe" "/out:$compiled" $metadata $pins (Join-Path $PSScriptRoot 'SetupPayload.cs') (Join-Path $PSScriptRoot 'SetupWindow.cs')
+    & $compiler @common "/resource:$prefix,Portable.prefix" "/resource:$suffix,Portable.suffix" "/resource:$list,files.json" "/resource:$engine,Setup.ps1" "/resource:$launcher,LiveTranslate.Launcher.exe" "/out:$compiled" $metadata $pins (Join-Path $PSScriptRoot 'SetupPayload.cs') (Join-Path $PSScriptRoot 'SetupWindow.cs')
     if ($LASTEXITCODE) { throw 'Desktop installer compilation failed.' }
     [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($target))
     [IO.File]::Move($compiled,$target)
 } finally {
-    foreach ($file in @($dashboard,$manifest,$metadata,$pins,$list,$engine,$launcher,$compiled)) {
+    foreach ($file in @($dashboard,$manifest,$metadata,$pins,$list,$engine,$launcher,$compiled,$prefix,$suffix)) {
         if ([IO.File]::Exists($file)) { [IO.File]::Delete($file) }
     }
     [IO.Directory]::Delete($build,$false)

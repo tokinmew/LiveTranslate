@@ -25,6 +25,10 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.6.9", "Reliable first-run verification and update checks",
+                "Check for updates looks for a published GitHub release. If it cannot reach one, the app can show the version in its signed local feed and explain what happened on GitHub.",
+                "Existing custom update sources remain selectable under Settings, Updates. You can also choose Automatic updates to return to the project's release channel.",
+                "Fixed a Windows setup error that stopped the offline model verifier before it could run. Existing model files can be checked locally."),
             new ReleaseNote("0.6.8", "Application folders and release history",
                 "Open LiveTranslate.exe from the application folder. Setup scripts, configuration files and documentation now have separate folders.",
                 "Open Settings, choose Updates and select Changelog to read the notes for this or an earlier version."),

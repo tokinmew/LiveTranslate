@@ -1,6 +1,6 @@
-LiveTranslate 0.6.8 for Windows 11 x64
+LiveTranslate 0.6.9 for Windows 11 x64
 
-For a new installation, open LiveTranslate-0.6.8-Setup.exe and choose Install.
+For a new installation, open LiveTranslate-0.6.9-Setup.exe and choose Install.
 Open LiveTranslate from the Start menu. You can also open LiveTranslate.exe
 in the application folder. Guides and notices are in docs, maintenance
 commands are in scripts, and model configuration is in config.
@@ -11,9 +11,10 @@ multilingual written pack under Settings, Language files, Get more text language
 
 For spoken translations, open Settings and Spoken English. Select an
 installed English voice and an output device, then enable spoken playback.
-For updates, open Settings and Updates. The local feed works immediately.
-The optional official GitHub source requires a published private release
-and a GitHub CLI account that can read it.
+For updates, open Settings, Updates and select Check for updates. Automatic
+updates first checks GitHub. If no published release is available there,
+the app can check the signed release stored on this PC. Private GitHub
+downloads require the free GitHub CLI signed into an account with access.
 
 1. If you use the portable ZIP, extract it to a writable local folder
    with about 3 GB free. Inside LiveTranslate, double-click LiveTranslate.exe.
@@ -29,6 +30,5 @@ and a GitHub CLI account that can read it.
 5. For PC VR, open VR captions. Select LiveTranslate VR captions in your
    headset's PC desktop/window view, then pin it if your runtime supports it.
 
-Open Settings and Updates to check your private release feed.
 See README.md for controls, VALIDATION.md for results and SOURCE-CHECKS.md
 for antivirus and model-source details.

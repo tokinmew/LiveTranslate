@@ -1,4 +1,4 @@
-# LiveTranslate 0.6.8 for Windows 11 x64
+# LiveTranslate 0.6.9 for Windows 11 x64
 
 Open **LiveTranslate** from the Windows Start menu or double-click **LiveTranslate.exe** in the application folder. The installed folder groups maintenance commands in **scripts**, model and dependency configuration in **config**, and guides and notices in **docs**. Models, runtime files and language packs continue to use their own folders.
 
@@ -30,7 +30,7 @@ Open **VR captions** to view translations in a separate window. Long captions ad
 
 Open **Settings → Spoken English** to hear accepted voice translations through a locally installed English voice. Spoken output starts off. Choose your headset or Windows output there and keep **Auto listen** enabled for the input you want translated. Rate and volume affect the generated voice. English-only input stays filtered. Background dialogue, music, and microphone pickup of speaker playback can reduce recognition accuracy.
 
-Use **Settings → Updates** to keep following the current local feed or choose **GitHub Releases**. The official project address is https://github.com/tokinmew/LiveTranslate. Private updates become available when the owner publishes a release with the signed assets. Private downloads require the free GitHub CLI signed into an account with access. The local feed also supports offline updates. The app displays its installed version on the Updates page.
+Open **Settings → Updates** and choose **Check for updates**. **Automatic updates** checks the official GitHub Releases channel on demand. If GitHub is unavailable or has no published release, the app checks the signed release stored on this PC and shows which version it found. That local result only describes the files on this PC. A private GitHub release requires an account with repository access and a signed-in GitHub CLI. Use **Choose manifest** to follow a different release file or select **Automatic updates** to return to the project channel.
 
 The official GitHub stable feed is pinned to this project's RSA-3072 public key. The client verifies the publisher signature and downloaded source hashes before compiling, scanning and installing a newer version. A custom local or HTTPS feed has its own trust requirements. Choose one only if you trust its publisher to supply application code.
 

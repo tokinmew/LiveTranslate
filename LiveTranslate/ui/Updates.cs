@@ -17,13 +17,19 @@ namespace LiveTranslate
     {
         private TextBox updateSource;
         private Label updateState, updateSourceLabel, updateSourceHint;
-        private bool managedReleaseSource, preparingUpdate, waitingForInstaller;
-        private Button checkUpdates, installUpdate, cancelUpdate, browseUpdate, defaultUpdate, githubUpdate;
+        private enum ReleaseSourceMode { Automatic, Custom, ManagedLocal }
+        private ReleaseSourceMode releaseSourceMode;
+        private bool preparingUpdate, waitingForInstaller;
+        private Button checkUpdates, installUpdate, cancelUpdate, browseUpdate, defaultUpdate, githubUpdate, automaticUpdate;
+        private Task bundledFeedStartup;
+        private int sourceEditNumber;
         private ProgressBar updateActivity;
         private CancellationTokenSource updateJob;
         private string offeredVersion, offeredDigest;
         private bool restartCommitted;
         private const string ProjectRepository = "https://github.com/tokinmew/LiveTranslate";
+        private const string ManagedLocalPreference = "managed-local";
+        private const string AutomaticPreference = "automatic";
         private static readonly Regex GithubRepository = new Regex(
             @"\Ahttps://github\.com/[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?/(?<repo>[a-z0-9._-]{1,100})/?\z",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -37,11 +43,8 @@ namespace LiveTranslate
         private static string UpdateRoot { get { return AppDomain.CurrentDomain.BaseDirectory; } }
         private static string FeedPreference { get { return Path.Combine(UpdateRoot, "data", "app-update-source.txt"); } }
 
-        private static string DefaultFeed()
+        private static string LocalFeed()
         {
-            string workspaceFeed = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                @"Codex\2026-11-18\new-chat\outputs\LiveTranslate-Releases\latest.json");
-            if (File.Exists(workspaceFeed)) return workspaceFeed;
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "LiveTranslate", "Releases", "latest.json");
         }
@@ -55,7 +58,7 @@ namespace LiveTranslate
         private static string NormalizedFeed(string input)
         {
             string value = input.Trim();
-            if (value.Length == 0) return DefaultFeed();
+            if (value.Length == 0) return ProjectRepository;
             if (value.Length > 2048) throw new InvalidDataException("The update source is too long.");
             foreach (char c in value)
                 if (Char.IsControl(c) || c == '"') throw new InvalidDataException("Invalid characters in the update source.");
@@ -89,39 +92,44 @@ namespace LiveTranslate
             return Path.GetFullPath(value);
         }
 
-        private static string ReadUpdateSource(out bool managed)
+        private static string ReadUpdateSource(string preference, string localFeed, out ReleaseSourceMode mode)
         {
-            managed = true;
+            mode = ReleaseSourceMode.Automatic;
             try
             {
-                if (File.Exists(FeedPreference) && new FileInfo(FeedPreference).Length <= 8192)
+                if (File.Exists(preference) && new FileInfo(preference).Length <= 8192)
                 {
-                    string saved = File.ReadAllText(FeedPreference).Trim();
-                    if (saved.Length != 0)
+                    string saved = File.ReadAllText(preference).Trim();
+                    if (saved == AutomaticPreference || saved.Length == 0) return ProjectRepository;
+                    if (saved == ManagedLocalPreference)
                     {
-                        string source = NormalizedFeed(saved);
-                        managed = false;
-                        return source;
+                        mode = ReleaseSourceMode.ManagedLocal;
+                        return localFeed;
                     }
+                    string custom = NormalizedFeed(saved);
+                    mode = ReleaseSourceMode.Custom;
+                    return custom;
+                }
+                // Early updater kits explicitly installed a per-user feed without a preference.
+                if (!File.Exists(preference) && File.Exists(localFeed))
+                {
+                    mode = ReleaseSourceMode.ManagedLocal;
+                    return localFeed;
                 }
             }
             catch (Exception) { } // A corrupt preference cannot prevent dashboard startup.
-            return DefaultFeed();
+            return ProjectRepository;
         }
 
-        private static void SaveUpdateSource(string source, bool managed)
+        private static void SaveUpdateSource(string pref, string source, ReleaseSourceMode mode)
         {
-            string pref = FeedPreference;
-            if (managed)
-            {
-                if (File.Exists(pref)) File.Delete(pref);
-                return;
-            }
             Directory.CreateDirectory(Path.GetDirectoryName(pref));
             string temp = pref + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
-                File.WriteAllText(temp, source, new UTF8Encoding(false));
+                string saved = mode == ReleaseSourceMode.ManagedLocal ? ManagedLocalPreference :
+                    mode == ReleaseSourceMode.Automatic ? AutomaticPreference : source;
+                File.WriteAllText(temp, saved, new UTF8Encoding(false));
                 if (File.Exists(pref)) File.Replace(temp, pref, null);
                 else File.Move(temp, pref);
             }
@@ -153,20 +161,23 @@ namespace LiveTranslate
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             updateSourceLabel = new Label { AutoSize = true, Font = new Font(Font, FontStyle.Bold), Margin = new Padding(0, 0, 0, 6) };
             layout.Controls.Add(updateSourceLabel, 0, 0);
-            updateSource = new TextBox { Dock = DockStyle.Top, BackColor = field, ForeColor = ink, Text = ReadUpdateSource(out managedReleaseSource),
+            updateSource = new TextBox { Dock = DockStyle.Top, BackColor = field, ForeColor = ink, Text = ReadUpdateSource(FeedPreference, LocalFeed(), out releaseSourceMode),
                 AccessibleName = "GitHub repository, server URL or manifest file", Margin = new Padding(0, 0, 0, 6) };
             layout.Controls.Add(updateSource, 0, 1);
             var sources = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, Margin = new Padding(0) };
+            automaticUpdate = UpdateButton("Automatic updates");
+            automaticUpdate.Click += delegate { SetReleaseSource(ProjectRepository, ReleaseSourceMode.Automatic); };
             githubUpdate = UpdateButton("GitHub Releases");
-            githubUpdate.Click += delegate { SetReleaseSource(ProjectRepository, false); };
+            githubUpdate.Click += delegate { SetReleaseSource(ProjectRepository, ReleaseSourceMode.Custom); };
             browseUpdate = UpdateButton("Choose manifest");
             browseUpdate.Click += delegate
             {
                 using (var d = new OpenFileDialog { Filter = "Update manifests (*.json)|*.json", CheckFileExists = true })
-                    if (d.ShowDialog(settingsForm) == DialogResult.OK) SetReleaseSource(d.FileName, false);
+                    if (d.ShowDialog(settingsForm) == DialogResult.OK) SetReleaseSource(d.FileName, ReleaseSourceMode.Custom);
             };
             defaultUpdate = UpdateButton("Use local default");
-            defaultUpdate.Click += delegate { SetReleaseSource(DefaultFeed(), true); };
+            defaultUpdate.Click += delegate { SetReleaseSource(LocalFeed(), ReleaseSourceMode.ManagedLocal); };
+            sources.Controls.Add(automaticUpdate);
             sources.Controls.Add(githubUpdate);
             sources.Controls.Add(browseUpdate);
             sources.Controls.Add(defaultUpdate);
@@ -207,20 +218,25 @@ namespace LiveTranslate
             layout.Controls.Add(actions, 0, 6);
             updateSource.TextChanged += delegate
             {
-                managedReleaseSource = String.IsNullOrWhiteSpace(updateSource.Text);
+                sourceEditNumber++;
+                releaseSourceMode = String.IsNullOrWhiteSpace(updateSource.Text) ? ReleaseSourceMode.Automatic : ReleaseSourceMode.Custom;
                 ClearReleaseOffer();
             };
             AddSettingsBody(page, "App updates", "Installed version " + CurrentUpdateVersion() + ". Choose a release source and check for a new version.", layout, 0);
             settingsTabs.TabPages.Add(page);
+            Shown += delegate { StartBundledFeed(); };
             FormClosed += delegate { if (updateJob != null && !preparingUpdate && !restartCommitted && !waitingForInstaller) updateJob.Cancel(); };
             RefreshUpdateActions();
         }
 
-        private void SetReleaseSource(string value, bool managed)
+        private void SetReleaseSource(string value, ReleaseSourceMode mode)
         {
             updateSource.Text = value;
-            managedReleaseSource = managed;
+            sourceEditNumber++;
+            releaseSourceMode = mode;
             ClearReleaseOffer();
+            try { SaveUpdateSource(FeedPreference, value, mode); }
+            catch (Exception) { updateState.Text += " The source could not be saved for next time."; }
         }
 
         private void ClearReleaseOffer()
@@ -243,14 +259,18 @@ namespace LiveTranslate
         {
             bool busy = updateJob != null;
             string address = updateSource.Text.Trim();
+            if (address.Length == 0) address = ProjectRepository;
             bool github = IsGithubRepository(address);
-            updateSourceLabel.Text = managedReleaseSource ? "Local release server · starts on demand" :
+            updateSourceLabel.Text = releaseSourceMode == ReleaseSourceMode.Automatic ? "Automatic updates" :
+                releaseSourceMode == ReleaseSourceMode.ManagedLocal ? "Local release server · starts on demand" :
                 github ? "GitHub repository · latest stable release" :
                 address.StartsWith("http://127.0.0.1", StringComparison.OrdinalIgnoreCase) ? "Local HTTP release server" :
                 address.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? "HTTPS release server" : "Update manifest file";
             updateSourceHint.Visible = github;
             updateSourceHint.Text = github ? "Use a repository that publishes LiveTranslate releases. For a private repository, sign in to GitHub CLI (gh auth login) with an account that has read access." : "";
-            checkUpdates.Enabled = browseUpdate.Enabled = defaultUpdate.Enabled = githubUpdate.Enabled = updateSource.Enabled = !busy;
+            if (releaseSourceMode == ReleaseSourceMode.Automatic)
+                updateSourceHint.Text = "Checks GitHub first. If the release channel is empty or unavailable, shows the signed release bundled with this installation.";
+            checkUpdates.Enabled = browseUpdate.Enabled = defaultUpdate.Enabled = githubUpdate.Enabled = automaticUpdate.Enabled = updateSource.Enabled = !busy;
             installUpdate.Enabled = !busy && offeredVersion != null && offeredDigest != null;
             installUpdate.Visible = offeredVersion != null && offeredDigest != null;
             cancelUpdate.Enabled = busy && !preparingUpdate && !restartCommitted;
@@ -258,6 +278,29 @@ namespace LiveTranslate
             updateActivity.Visible = busy;
             updateActivity.Style = busy ? ProgressBarStyle.Marquee : ProgressBarStyle.Blocks;
             updateActivity.MarqueeAnimationSpeed = busy ? 35 : 0;
+        }
+
+        private Task StartBundledFeed()
+        {
+            if (bundledFeedStartup == null) bundledFeedStartup = InitializeBundledFeed(sourceEditNumber);
+            return bundledFeedStartup;
+        }
+
+        private async Task InitializeBundledFeed(int edits)
+        {
+            try
+            {
+                // Local-only. The helper checks the signed manifest and package
+                // before recommending migration of a one-time release kit.
+                var verified = await Task.Run(() => RunUpdateHelper(CancellationToken.None, "installed_feed.py"));
+                string previous = Value(verified, "migrate_source");
+                if (previous.Length != 0 && !closing && !IsDisposed && edits == sourceEditNumber &&
+                    releaseSourceMode == ReleaseSourceMode.Custom &&
+                    String.Equals(updateSource.Text, previous, StringComparison.OrdinalIgnoreCase) &&
+                    String.Equals(File.ReadAllText(FeedPreference).Trim(), previous, StringComparison.OrdinalIgnoreCase))
+                    SetReleaseSource(ProjectRepository, ReleaseSourceMode.Automatic);
+            }
+            catch (Exception) { } // An explicit check retries local verification and reports a failure.
         }
 
         private async void RunUpdateAction(bool install)
@@ -268,29 +311,39 @@ namespace LiveTranslate
                 updateState.Text = "Finish installing language components before restarting for an update.";
                 return;
             }
-            string source;
-            try { source = NormalizedFeed(updateSource.Text); }
-            catch (Exception ex) { updateState.Text = ex.Message; return; }
-
-            bool serveLocal = managedReleaseSource;
             var job = new CancellationTokenSource();
             preparingUpdate = install;
             updateJob = job;
             RefreshUpdateActions();
             try
             {
+                if (!install)
+                {
+                    updateState.Text = "Checking for updates.";
+                    await StartBundledFeed();
+                    job.Token.ThrowIfCancellationRequested();
+                    if (closing || IsDisposed) return;
+                }
+                string source = NormalizedFeed(updateSource.Text);
+                bool serveLocal = releaseSourceMode == ReleaseSourceMode.ManagedLocal;
                 string installed = CurrentUpdateVersion();
                 if (!install)
                 {
                     offeredVersion = offeredDigest = null;
                     updateState.Text = "Checking for updates…";
-                    var result = await Task.Run(() => UpdateCommand(job.Token, serveLocal, "check", "--feed", source, "--installed", installed));
+                    var args = new List<string> { "check", "--feed", source, "--installed", installed };
+                    if (releaseSourceMode == ReleaseSourceMode.Automatic) args.Add("--automatic");
+                    var result = await Task.Run(() => UpdateCommand(job.Token, serveLocal, args.ToArray()));
                     job.Token.ThrowIfCancellationRequested();
                     if (closing || IsDisposed) return;
                     bool available;
                     if (!Boolean.TryParse(Value(result, "available"), out available))
                         throw new InvalidDataException("The updater returned an incomplete release check.");
-                    if (available)
+                    if (Value(result, "status") == "bundled")
+                        updateState.Text = BundledResult(result, installed);
+                    else if (Value(result, "status") == "unpublished")
+                        updateState.Text = "No stable release has been published to this GitHub repository. Installed version " + installed + ".";
+                    else if (available)
                     {
                         string v = Value(result, "version"), digest = Value(result, "sha256");
                         Version next;
@@ -301,8 +354,13 @@ namespace LiveTranslate
                         string downloadSize = size > 0 ? " (" + (size / 1048576.0).ToString("0.##", CultureInfo.CurrentCulture) + " MiB)" : "";
                         updateState.Text = (IsGithubRepository(source) ? "GitHub release v" : "Version ") + v + " is available" + downloadSize + ". Live translation will pause during restart.";
                     }
+                    else if (Path.IsPathRooted(source))
+                        updateState.Text = "This local feed has no newer release. Installed version " + installed + ".";
                     else updateState.Text = "You're up to date. Installed version " + installed + ".";
-                    try { SaveUpdateSource(source, serveLocal); }
+                    string cacheWarning = Value(result, "cache_warning");
+                    if (!String.IsNullOrEmpty(cacheWarning))
+                        updateState.Text += " The offline release copy could not be refreshed. " + cacheWarning;
+                    try { SaveUpdateSource(FeedPreference, source, releaseSourceMode); }
                     catch (Exception) { updateState.Text += " The source could not be saved for next time."; }
                 }
                 else
@@ -358,6 +416,18 @@ namespace LiveTranslate
             }
         }
 
+        private static string BundledResult(Dictionary<string, object> result, string installed)
+        {
+            Version version;
+            string release = Value(result, "version"), github = Value(result, "github_status");
+            if (!Version.TryParse(release, out version) || (github != "unavailable" && github != "unpublished") ||
+                !Object.Equals(result["available"], false))
+                throw new InvalidDataException("The updater returned an incomplete bundled release check.");
+            string verified = "Verified bundled release " + release + ". Installed version " + installed + ". ";
+            return verified + (github == "unpublished" ? "GitHub has no published stable release." :
+                "GitHub could not be checked for newer releases. " + Value(result, "github_detail"));
+        }
+
         private static string QuoteUpdateArgument(string value)
         {
             var b = new StringBuilder("\"");
@@ -403,7 +473,13 @@ namespace LiveTranslate
                 serverArgs.Add("--serve-local");
                 args = serverArgs.ToArray();
             }
-            using (Process p = StartUpdateHelper("app_updates.py", args))
+            return RunUpdateHelper(token, "app_updates.py", args);
+        }
+
+        private static Dictionary<string, object> RunUpdateHelper(CancellationToken token, string script, params string[] args)
+        {
+            token.ThrowIfCancellationRequested();
+            using (Process p = StartUpdateHelper(script, args))
             using (token.Register(() => StopUpdateHelper(p)))
             {
                 Task<string> output = p.StandardOutput.ReadToEndAsync();

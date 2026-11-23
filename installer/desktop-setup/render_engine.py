@@ -4,7 +4,9 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from build_kit import read_package, render
+from pack_resource import split
 
 
 def prepare(portable, launcher, output, version):
@@ -20,6 +22,7 @@ def prepare(portable, launcher, output, version):
         "PortableHash": pin,
     }
     lines = [f'internal const string {key} = "{value}";' for key,value in constants.items()]
+    lines.append(f'internal const int SuffixSize = {split(portable, output)};')
     text = "namespace LiveTranslate.Setup { internal static class GeneratedPins {\n" + "\n".join(lines) + "\n} }\n"
     (output / "GeneratedPins.cs").write_text(text, "ascii")
 

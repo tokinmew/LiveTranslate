@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Windows.Forms;
 
@@ -38,12 +39,54 @@ namespace LiveTranslate.Setup
         {
             foreach (string name in PayloadFiles)
             {
-                using (var input = typeof(SetupPayload).Assembly.GetManifestResourceStream(name))
+                using (var output = new FileStream(Path.Combine(staging, name), FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
-                    if (input == null) throw new InvalidDataException("Missing installer resource: " + name);
-                    using (var output = new FileStream(Path.Combine(staging, name), FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                        input.CopyTo(output);
+                    if (name == Package) RestorePortable(output);
+                    else using (Stream input = Resource(name)) input.CopyTo(output);
                 }
+            }
+        }
+
+        private static Stream Resource(string name)
+        {
+            var stream = typeof(SetupPayload).Assembly.GetManifestResourceStream(name);
+            if (stream == null) throw new InvalidDataException("Missing installer resource: " + name);
+            return stream;
+        }
+
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [DllImport("cabinet.dll")]
+        private static extern bool CreateDecompressor(uint algorithm, IntPtr allocation, out IntPtr decoder);
+
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [DllImport("cabinet.dll")]
+        private static extern bool Decompress(IntPtr decoder, byte[] input, UIntPtr inputSize,
+            [Out] byte[] output, UIntPtr outputSize, out UIntPtr actual);
+
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        [DllImport("cabinet.dll")]
+        private static extern bool CloseDecompressor(IntPtr decoder);
+
+        private static void RestorePortable(Stream destination)
+        {
+            using (Stream prefix = Resource("Portable.prefix")) prefix.CopyTo(destination);
+            using (Stream suffix = Resource("Portable.suffix"))
+            using (var reader = new BinaryReader(suffix))
+            {
+                byte[] compressed = reader.ReadBytes(checked((int)suffix.Length));
+                byte[] restored = new byte[GeneratedPins.SuffixSize];
+                IntPtr decoder;
+                if (!CreateDecompressor(5, IntPtr.Zero, out decoder))
+                    throw new IOException("Windows could not open its built-in installer decompressor.");
+                try
+                {
+                    UIntPtr actual;
+                    if (!Decompress(decoder, compressed, (UIntPtr)(uint)compressed.Length, restored,
+                            (UIntPtr)(uint)restored.Length, out actual) || actual.ToUInt64() != (ulong)restored.Length)
+                        throw new InvalidDataException("The installer is incomplete. Download a fresh copy.");
+                    destination.Write(restored, 0, restored.Length);
+                }
+                finally { CloseDecompressor(decoder); }
             }
         }
 

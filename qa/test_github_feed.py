@@ -9,7 +9,7 @@ import tempfile
 import types
 import unittest
 from unittest.mock import Mock, patch
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "LiveTranslate/backend"))
 import app_updates
@@ -46,7 +46,8 @@ class GitHubReleaseTests(unittest.TestCase):
         self.pub = self.stack.enter_context(patch.object(gh,"public_read",side_effect=self.reply))
         self.private = self.stack.enter_context(patch.object(gh,"private_read",side_effect=AssertionError("Authentication requested")))
         self.verify = Mock()
-        self.stack.enter_context(patch.dict(sys.modules,release_signature=types.SimpleNamespace(verify_official_manifest=self.verify)))
+        signature = types.SimpleNamespace(OFFICIAL="tokinmew/livetranslate", verify_official_manifest=self.verify)
+        self.stack.enter_context(patch.dict(sys.modules, release_signature=signature))
 
     def asset(self, name, identity, content):
         return {"name":name, "id":identity, "state":"uploaded","size":len(content),
@@ -65,8 +66,28 @@ class GitHubReleaseTests(unittest.TestCase):
         self.private.assert_not_called()
         self.assertFalse(app_updates.check_update(self.repo,"0.6.5")["available"])
 
+    def test_official_check_repairs_old_snapshot_once_without_prefetching_an_upgrade(self):
+        digest = self.manifest["sha256"]
+        snapshot = {"version": "0.6.4", "sha256": "0" * 64}
+        root = Path("isolated")
+        sink = Mock(side_effect=lambda *args: snapshot.update(version="0.6.5", sha256=digest))
+        local = types.SimpleNamespace(installed_snapshot=lambda _: snapshot, cache_official_snapshot=sink)
+        official = "https://github.com/tokinmew/LiveTranslate"
+        self.pub.side_effect = lambda endpoint, *args: self.reply(endpoint.replace("tokinmew/", "example/"), *args)
+        with patch.dict(sys.modules, installed_feed=local):
+            for installed in ("0.6.4", "0.6.5", "0.6.5"):
+                result = app_updates.check_update(official, installed, root)
+                self.assertEqual(result["available"], installed == "0.6.4")
+            sink.assert_called_once_with(root, self.content, self.package)
+            self.assertEqual(1, sum(url.endswith("/assets/22") for url in self.endpoints))
+            snapshot["sha256"] = "0" * 64
+            with self.assertRaisesRegex(ValueError, "different content"):
+                app_updates.check_update(official, "0.6.5", root)
+            app_updates.check_update(self.repo, "0.6.5", root)
+            self.assertEqual(1, sink.call_count)
+
     def test_download_bounds_digest_and_fixed_asset_id(self):
-        manifest, asset = app_updates._manifest(self.repo)
+        manifest, asset, _ = app_updates._manifest(self.repo)
         self.assertEqual(self.package,app_updates._read(asset,manifest["size"]))
         self.assertTrue(self.endpoints[-1].endswith("/assets/22"))
         with self.assertRaises(ValueError):
@@ -78,10 +99,44 @@ class GitHubReleaseTests(unittest.TestCase):
     def test_private_reads_use_only_fixed_repo_api_paths(self):
         self.pub.side_effect = rejected(404)
         self.private.side_effect = self.reply
-        manifest, asset = app_updates._manifest(self.repo)
+        manifest, asset, _ = app_updates._manifest(self.repo)
         self.assertEqual(self.package,app_updates._read(asset,manifest["size"]))
         self.assertEqual(3,self.private.call_count)
-        self.assertEqual(1,self.pub.call_count)
+        self.assertEqual(2,self.pub.call_count)
+
+    def test_unpublished_public_repository_has_distinct_status_without_cli(self):
+        def empty_channel():
+            self.pub.side_effect = [rejected(404), encoded({"full_name":"example/LiveTranslate","private":False})]
+        empty_channel()
+        self.assertEqual({"ok": True, "available": False, "status": "unpublished"},
+                         app_updates.check_update(self.repo, "0.6.8"))
+        self.assertEqual(["repos/example/LiveTranslate/releases/latest", "repos/example/LiveTranslate"],
+                         [args.args[0] for args in self.pub.call_args_list])
+        empty_channel()
+        with self.assertRaises(gh.NoStableRelease):
+            app_updates._manifest(self.repo)
+        self.private.assert_not_called()
+        self.verify.assert_not_called()
+
+    def test_unpublished_private_repository_requires_readable_empty_collection(self):
+        self.pub.side_effect = rejected(404)
+        self.private.side_effect = [gh.PrivateRequestFailed("release unavailable"), encoded([])]
+        self.assertEqual("unpublished", app_updates.check_update(self.repo, "0.6.8")["status"])
+        self.assertEqual(["repos/example/LiveTranslate/releases/latest", "repos/example/LiveTranslate/releases?per_page=1"],
+                         [args.args[0] for args in self.private.call_args_list])
+        for response in (gh.PrivateRequestFailed("access denied"), encoded([{"draft": True}])):
+            with self.subTest(response=response):
+                self.private.side_effect = [gh.PrivateRequestFailed("release unavailable"), response]
+                with self.assertRaisesRegex(gh.PrivateRequestFailed, "release unavailable"):
+                    app_updates.check_update(self.repo, "0.6.8")
+
+    def test_private_or_unreachable_feed_never_reports_current_or_empty(self):
+        for status in (403, 404, 429):
+            with self.subTest(status=status):
+                self.pub.side_effect = [rejected(status), rejected(404)]
+                self.private.side_effect = ValueError("GitHub CLI needs sign-in")
+                with self.assertRaisesRegex(ValueError, "sign-in"):
+                    app_updates.check_update(self.repo, "0.6.8")
 
     def test_early_server_error_does_not_request_auth(self):
         self.pub.side_effect = rejected(502)
@@ -161,6 +216,53 @@ class TransportTests(unittest.TestCase):
             proc.stdout = io.BytesIO(b"abcde")
             with self.assertRaises(ValueError):
                 gh.private_read("repos/a/b/releases/assets/9","application/octet-stream",3)
+
+
+class AutomaticFeedTests(unittest.TestCase):
+    repo = "https://github.com/tokinmew/LiveTranslate"
+
+    def setUp(self):
+        self.fixture = tempfile.TemporaryDirectory()
+        self.addCleanup(self.fixture.cleanup)
+        self.root = Path(self.fixture.name)
+        self.snapshot = Mock(return_value={"ok":True, "version":"0.6.8"})
+        self.modules = patch.dict(sys.modules, installed_feed=types.SimpleNamespace(installed_snapshot=self.snapshot))
+        self.modules.start()
+        self.addCleanup(self.modules.stop)
+
+    def test_unavailable_or_unpublished_returns_verified_snapshot_without_install_offer(self):
+        failures = (gh.SourceUnavailable("Access denied"), URLError("DNS unavailable"), None)
+        for problem in failures:
+            with self.subTest(problem=problem), patch.object(app_updates, "check_update", side_effect=problem,
+                    return_value={"ok":True, "available":False, "status":"unpublished"}):
+                result = app_updates.automatic_check(self.repo, "0.6.9", self.root)
+                self.assertEqual("unavailable" if problem else "unpublished", result["github_status"])
+                self.assertEqual(("bundled", False, "0.6.8"), (result["status"],result["available"],result["version"]))
+                self.assertNotIn("sha256", result)
+                self.snapshot.assert_called_with(self.root)
+
+    def test_remote_content_or_certificate_failure_stops_before_snapshot(self):
+        import ssl
+        for problem in (ValueError("bad signature"), ValueError("digest mismatch"), URLError(ssl.SSLError("bad certificate"))):
+            with self.subTest(problem=problem), patch.object(app_updates, "check_update", side_effect=problem):
+                with self.assertRaises(type(problem)):
+                    app_updates.automatic_check(self.repo, "0.6.9", self.root)
+        self.snapshot.assert_not_called()
+
+    def test_remote_result_precedes_bundled_and_custom_sources_are_excluded(self):
+        for available in (False, True):
+            online = {"ok":True, "available":available, "version":"0.6.9"}
+            with patch.object(app_updates, "check_update", return_value=online):
+                self.assertEqual(online, app_updates.automatic_check(self.repo, "0.6.9", self.root))
+        with self.assertRaises(ValueError):
+            app_updates.automatic_check("https://github.com/other/test", "0.6.9", self.root)
+        self.snapshot.assert_not_called()
+
+    def test_two_failures_remain_visible(self):
+        self.snapshot.side_effect = ValueError("snapshot signature is invalid")
+        with patch.object(app_updates, "check_update", side_effect=gh.SourceUnavailable("Access denied")):
+            with self.assertRaisesRegex(ValueError, "Access denied.*snapshot signature is invalid"):
+                app_updates.automatic_check(self.repo, "0.6.9", self.root)
 
 
 if __name__ == "__main__":

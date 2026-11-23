@@ -16,6 +16,11 @@ internal static class ManagedLayout
         "748e00702e64c07d7f47b22dd5d70ebdcaf3f0682d7929b29ff14c74543cad04"
     };
 
+    private static readonly HashSet<string> OrganizedEngines = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+        "568f594597d0203fd87a37cb88c8fbcead1cd270da49009918d8b03102249159",
+        "e902ece7c4f02d9266457473dc90938dae11df7e428fccee58dfe2e0f47a06bf"
+    };
+
     internal static void Update(string root)
     {
         string parent = Path.GetDirectoryName(root);
@@ -34,10 +39,11 @@ internal static class ManagedLayout
         {
             // A newer graphical installer can preserve preexisting loose user files.
             // Its own manifest already describes organized paths and shortcut targets.
-            if (source.Contains("$releaseVersion = [version]'0.6.8'")) return;
+            if (source.Contains("$releaseVersion = [version]'0.6.8'") ||
+                source.Contains("$releaseVersion = [version]'" + CurrentVersion() + "'")) return;
             if (!InstalledEngines.Contains(LayoutMigration.Hash(bytes)))
-                throw new IOException("This installation has a custom or unknown uninstaller. Use the full LiveTranslate 0.6.8 installer to upgrade it.");
-            string revised = Adapt(source);
+                throw new IOException("This installation has a custom or unknown uninstaller. Use the full LiveTranslate " + CurrentVersion() + " installer to upgrade it.");
+            string revised = WithFeedRemoval(Adapt(source));
             byte[] body = Encoding.UTF8.GetBytes("\ufeff" + revised);
             LayoutMigration.Write(script, body, LayoutMigration.Archive(root, "managed", "Setup.ps1"));
         }
@@ -46,12 +52,104 @@ internal static class ManagedLayout
         if (!String.Equals(root, defaultRoot, StringComparison.OrdinalIgnoreCase)) return;
         string menu = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "LiveTranslate");
         Retarget(root, menu);
-        using (var record = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\LiveTranslate", true))
+    }
+
+    private static string CurrentVersion()
+    {
+        return typeof(ManagedLayout).Assembly.GetName().Version.ToString(3);
+    }
+
+    internal static bool NeedsVersionRefresh(string root, string owner, string displayVersion, string current)
+    {
+        if (!String.Equals(owner, "LiveTranslate per-user desktop setup|" + root, StringComparison.OrdinalIgnoreCase))
+            return false;
+        Version previous;
+        return !Version.TryParse(displayVersion, out previous) || previous < new Version(current);
+    }
+
+    internal static void RefreshRegistration(string root)
+    {
+        string defaultRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "LiveTranslate", "app");
+        if (!String.Equals(root, defaultRoot, StringComparison.OrdinalIgnoreCase)) return;
+        const string key = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\LiveTranslate";
+        string current = CurrentVersion();
+        // Installed Apps metadata is ancillary. Retry next launch if HKCU is read-only.
+        try
         {
-            if (record != null && String.Equals(record.GetValue("LiveTranslateSetupOwner") as string,
-                    "LiveTranslate per-user desktop setup|" + root, StringComparison.OrdinalIgnoreCase))
-                record.SetValue("DisplayVersion", "0.6.8");
+            string marker = Path.Combine(Path.GetDirectoryName(root), ".managed");
+            LayoutMigration.Plain(marker);
+            if (!File.Exists(marker) || File.ReadAllText(marker) != "LiveTranslate Windows per-user install v1") return;
+            using (var record = Registry.CurrentUser.OpenSubKey(key))
+                if (record == null || !NeedsVersionRefresh(root, record.GetValue("LiveTranslateSetupOwner") as string,
+                    record.GetValue("DisplayVersion") as string, current)) return;
+            using (var record = Registry.CurrentUser.OpenSubKey(key, true))
+                if (record != null && NeedsVersionRefresh(root, record.GetValue("LiveTranslateSetupOwner") as string,
+                    record.GetValue("DisplayVersion") as string, current)) record.SetValue("DisplayVersion", current);
         }
+        catch (UnauthorizedAccessException) { }
+        catch (System.Security.SecurityException) { }
+        catch (IOException) { }
+    }
+
+    internal static void UpgradeOrganizedUninstaller(string root)
+    {
+        string parent = Path.GetDirectoryName(root);
+        if (parent == null || !String.Equals(Path.GetFileName(root), "app", StringComparison.OrdinalIgnoreCase)) return;
+        string marker = Path.Combine(parent, ".managed");
+        LayoutMigration.Plain(marker);
+        if (!File.Exists(marker) || File.ReadAllText(marker) != "LiveTranslate Windows per-user install v1") return;
+        string support = Path.Combine(root, ".lt-setup");
+        string script = Path.Combine(support, "Setup.ps1");
+        LayoutMigration.Plain(support);
+        LayoutMigration.Plain(script);
+        if (!File.Exists(script)) return;
+        byte[] bytes = File.ReadAllBytes(script);
+        if (!OrganizedEngines.Contains(LayoutMigration.Hash(bytes))) return;
+        string original = Encoding.UTF8.GetString(bytes).TrimStart('\ufeff');
+        string backup = LayoutMigration.Archive(root, "managed", "Setup.ps1", "0.6.9");
+        LayoutMigration.Write(script, Encoding.UTF8.GetBytes("\ufeff" + WithFeedRemoval(original)), backup);
+    }
+
+    private static string WithFeedRemoval(string original)
+    {
+        const string point = "        Setup-Links $menu $appDir $true";
+        if (original.IndexOf(point, StringComparison.Ordinal) < 0 || original.IndexOf(point, StringComparison.Ordinal) !=
+            original.LastIndexOf(point, StringComparison.Ordinal)) throw new InvalidDataException("Unsupported uninstall script.");
+        // All paths below are fixed installation-owned candidates. An incomplete or
+        // edited feed stays in place. The old uninstall code retains its pinned file list.
+        const string cleanup = @"        if (!$erase) {
+            $support = Under $appDir '.lt-setup'
+            $feed = Under $appDir 'updates/feed'
+            $latest = Under $feed 'latest.json'
+            Plain-Path $support; Plain-Path $feed; Plain-Path $latest
+            $owned = @()
+            foreach ($v in @('0.6.8', '0.6.9')) {
+                $receipt = Under $support ('feed-' + $v + '.json')
+                $package = Under $feed ('LiveTranslate-' + $v + '.json')
+                Plain-Path $receipt; Plain-Path $package
+                if (![IO.File]::Exists($receipt) -or ([IO.FileInfo]$receipt).Length -gt 1024) { continue }
+                try { $r = [IO.File]::ReadAllText($receipt) | ConvertFrom-Json -ErrorAction Stop } catch { continue }
+                if ($r.manifest_sha256 -cnotmatch '^[a-f0-9]{64}$' -or $r.package_sha256 -cnotmatch '^[a-f0-9]{64}$') { continue }
+                if ([IO.File]::Exists($package) -and (Get-FileHash -LiteralPath $package).Hash -ieq $r.package_sha256) {
+                    $owned += [pscustomobject]@{Package=$package; Manifest=$r.manifest_sha256; Receipt=$receipt}
+                }
+            }
+            if ([IO.File]::Exists($latest)) {
+                $currentHash = (Get-FileHash -LiteralPath $latest).Hash
+                if ($owned | Where-Object { $_.Manifest -ieq $currentHash }) {
+                    [IO.File]::Delete($latest)
+                    foreach ($pair in $owned) { [IO.File]::Delete($pair.Package); [IO.File]::Delete($pair.Receipt) }
+                    $lockPath = Under $feed '.publish.lock'
+                    Plain-Path $lockPath
+                    if ([IO.File]::Exists($lockPath) -and ([IO.FileInfo]$lockPath).Length -eq 1 -and [IO.File]::ReadAllText($lockPath) -ceq '0') { [IO.File]::Delete($lockPath) }
+                    foreach ($dir in @($feed, (Under $appDir 'updates'))) {
+                        if ([IO.Directory]::Exists($dir) -and ![IO.Directory]::GetFileSystemEntries($dir).Length) { [IO.Directory]::Delete($dir) }
+                    }
+                }
+            }
+        }
+";
+        return original.Replace(point, cleanup.Replace("\r\n", "\n").Replace("\n", "\r\n") + point);
     }
 
     private static string Adapt(string original)

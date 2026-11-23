@@ -38,6 +38,18 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+class NoStableRelease(ValueError):
+    """The repository can be read, but GitHub has no published stable release."""
+
+
+class SourceUnavailable(ValueError):
+    """GitHub or its configured credentials are unavailable."""
+
+
+class PrivateRequestFailed(SourceUnavailable):
+    """GitHub CLI completed, but could not fetch the requested endpoint."""
+
+
 def public_read(endpoint, accept, limit):
     url = API + "/" + endpoint
     opener = urllib.request.build_opener(NoRedirect())
@@ -86,7 +98,7 @@ def installed_cli():
             path = Path(directory)/"GitHub CLI"/"gh.exe"
             if path.is_absolute() and path.is_file():
                 return path
-    raise ValueError("No public stable release was available. Private repositories require GitHub CLI installed in Program Files and signed in to github.com with read access.")
+    raise SourceUnavailable("No public stable release was available. Private repositories require GitHub CLI installed in Program Files and signed in to github.com with read access.")
 
 
 def private_read(endpoint, accept, limit):
@@ -111,15 +123,15 @@ def private_read(endpoint, accept, limit):
             try:
                 data = done.get(timeout=70)
             except queue.Empty:
-                raise ValueError("GitHub CLI download timed out.") from None
+                raise SourceUnavailable("GitHub CLI download timed out.") from None
             if data is None or len(data)>limit:
                 raise ValueError("GitHub CLI returned an invalid or oversized response.")
             try:
                 status = child.wait(timeout=3)
             except subprocess.TimeoutExpired:
-                raise ValueError("GitHub CLI download did not finish.") from None
+                raise SourceUnavailable("GitHub CLI download did not finish.") from None
             if status:
-                raise ValueError("GitHub CLI could not read the stable release. Check repository access, sign-in and the two uploaded update files.")
+                raise PrivateRequestFailed("GitHub CLI could not read the stable release. Check repository access and sign-in.")
             return data
         finally:
             if child.poll() is None:
@@ -150,7 +162,9 @@ class Asset:
 
 
 def release(url, manifest_limit, package_limit):
-    base = "repos/"+repository(url)+"/releases/"
+    slug = repository(url)
+    repo_endpoint = "repos/" + slug
+    base = repo_endpoint + "/releases/"
     endpoint = base+"latest"
     private = False
     try:
@@ -159,8 +173,33 @@ def release(url, manifest_limit, package_limit):
         status = error.code
         error.close()
         if status not in (401,403,404,429):
+            if 500 <= status <= 599:
+                raise SourceUnavailable("GitHub release check returned HTTP "+str(status)+".") from None
             raise ValueError("GitHub release check returned HTTP "+str(status)+".") from None
-        raw = private_read(endpoint,"application/vnd.github+json",METADATA_LIMIT)
+        if status == 404:
+            # GitHub uses the same status for an unpublished channel and an
+            # inaccessible repository. Only identify an empty public channel
+            # when the repository itself is independently readable.
+            try:
+                metadata = json.loads(public_read(repo_endpoint, "application/vnd.github+json", METADATA_LIMIT))
+            except urllib.error.HTTPError as repo_error:
+                repo_error.close()
+            else:
+                if (isinstance(metadata, dict) and metadata.get("private") is False
+                        and str(metadata.get("full_name", "")).lower() == slug.lower()):
+                    raise NoStableRelease("No stable release has been published to this GitHub repository.") from None
+        try:
+            raw = private_read(endpoint,"application/vnd.github+json",METADATA_LIMIT)
+        except PrivateRequestFailed as latest_error:
+            # gh returns the same exit code for missing and inaccessible releases.
+            # An authenticated empty release list confirms access and publication state.
+            try:
+                page = private_read(repo_endpoint + "/releases?per_page=1", "application/vnd.github+json", METADATA_LIMIT)
+            except ValueError:
+                raise latest_error from None
+            if json.loads(page) == []:
+                raise NoStableRelease("No stable release has been published to this GitHub repository.") from None
+            raise
         private = True
     release = json.loads(raw)
     if (not isinstance(release,dict) or release.get("draft") is not False

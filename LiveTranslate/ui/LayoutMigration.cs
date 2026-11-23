@@ -58,9 +58,9 @@ internal static class LayoutMigration
             return String.Equals(BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", ""), hash, StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string Archive(string root, string category, string basename)
+    internal static string Archive(string root, string category, string basename, string version = "0.6.8")
     {
-        string backup = DirectoryAt(DirectoryAt(DirectoryAt(root, "migration-backup"), "0.6.8"), category);
+        string backup = DirectoryAt(DirectoryAt(DirectoryAt(root, "migration-backup"), version), category);
         string path = Path.Combine(backup, basename);
         Plain(path);
         return File.Exists(path) || Directory.Exists(path) ?
@@ -120,6 +120,12 @@ internal static class LayoutMigration
         string driveRoot = Path.GetPathRoot(root);
         if (root.Length > driveRoot.Length) root = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         Plain(root);
+        OrganizeFiles(root);
+        ManagedLayout.RefreshRegistration(root);
+    }
+
+    private static void OrganizeFiles(string root)
+    {
         string state = Path.Combine(root, ".livetranslate-update");
         string marker = Path.Combine(state, "layout-0.6.8.txt");
         Plain(state);
@@ -171,6 +177,7 @@ internal static class LayoutMigration
                         File.Move(source, Archive(root, "previous-root", Path.GetFileName(source)));
                 }
             }
+            ManagedLayout.UpgradeOrganizedUninstaller(root);
             Write(marker, Encoding.ASCII.GetBytes(LayoutFiles.Fingerprint), null);
         }
     }

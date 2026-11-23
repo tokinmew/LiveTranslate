@@ -11,6 +11,7 @@ from pathlib import Path
 import queue
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -201,16 +202,25 @@ def _active_feed(feed, serve_local):
                 child.wait(timeout=3)
 
 
-def _manifest(feed):
+def _manifest(feed, allow_unpublished=False):
     # Keep the local bootstrap independent of optional GitHub-only modules.
+    signed_content = None
     github = (isinstance(feed, str) and re.fullmatch(r"https://github\.com/[^/?#]+/[^/?#]+/?", feed, re.I)
               and not feed.rstrip("/").lower().endswith(".json"))
     if github:
-        from github_releases import release, repository
-        from release_signature import verify_official_manifest
-        tag_version, content, package = release(feed, MAX_MANIFEST, MAX_PACKAGE)
+        from github_releases import NoStableRelease, release, repository
+        from release_signature import OFFICIAL, verify_official_manifest
+        try:
+            tag_version, content, package = release(feed, MAX_MANIFEST, MAX_PACKAGE)
+        except NoStableRelease:
+            if allow_unpublished:
+                return None, None, None
+            raise
         manifest = _json(content)
-        verify_official_manifest(repository(feed), manifest)
+        slug = repository(feed)
+        verify_official_manifest(slug, manifest)
+        if slug.casefold() == OFFICIAL:
+            signed_content = content
     else:
         location = _feed_location(feed)
         manifest = _json(_read(location, MAX_MANIFEST))
@@ -235,13 +245,60 @@ def _manifest(feed):
             raise ValueError("Update package is outside the selected feed folder.")
     else:
         package = location.rsplit("/", 1)[0] + "/" + filename
-    return {"version": version, "size": size, "sha256": _sha(manifest.get("sha256"))}, package
+    return {"version": version, "size": size, "sha256": _sha(manifest.get("sha256"))}, package, signed_content
 
 
-def check_update(feed, installed):
+def check_update(feed, installed, root=None):
     current = _version(installed)
-    manifest, _ = _manifest(feed)
-    return {"ok": True, "available": _version(manifest["version"]) > current, **manifest}
+    manifest, location, signed_content = _manifest(feed, allow_unpublished=True)
+    if manifest is None:
+        return {"ok": True, "available": False, "status": "unpublished"}
+    target = _version(manifest["version"])
+    result = {"ok": True, "available": target > current, **manifest}
+    if root is not None and signed_content is not None and target == current:
+        # A pre-0.6.9 updater can finish installing from GitHub without
+        # retaining the signed release assets. Fill that gap on an explicit
+        # successful check, and avoid downloading an already cached package.
+        from installed_feed import installed_snapshot, cache_official_snapshot
+        try:
+            cached = installed_snapshot(root)
+            if _version(cached["version"]) < target:
+                package = _read(location, manifest["size"])
+                cache_official_snapshot(root, signed_content, package)
+            elif _version(cached["version"]) == target and cached["sha256"] != manifest["sha256"]:
+                raise ValueError("The local and online signatures describe different content for the same version.")
+        except (urllib.error.URLError, ConnectionError, TimeoutError, ssl.SSLError):
+            raise
+        except OSError as exc:
+            result["cache_warning"] = str(exc)
+    return result
+
+
+def automatic_check(feed, installed, root):
+    from github_releases import SourceUnavailable, repository
+    if repository(feed).casefold() != "tokinmew/livetranslate":
+        raise ValueError("Automatic checks use the official LiveTranslate repository.")
+    try:
+        result = check_update(feed, installed, root)
+    except (SourceUnavailable, urllib.error.URLError, ConnectionError, TimeoutError) as exc:
+        # Authentication or connectivity can be unavailable. Release contents,
+        # the signature, TLS certificate and transport rules must still validate.
+        if isinstance(exc, urllib.error.HTTPError) or isinstance(getattr(exc, "reason", exc), ssl.SSLError):
+            raise
+        remote_status, detail = "unavailable", str(exc)
+    else:
+        if result.get("status") != "unpublished":
+            return result
+        remote_status, detail = "unpublished", ""
+    from installed_feed import installed_snapshot
+    try:
+        version = installed_snapshot(root)["version"]
+        _version(version)
+    except (ValueError, OSError, KeyError) as exc:
+        remote = "GitHub has no published stable release." if remote_status == "unpublished" else "GitHub could not be checked. " + detail
+        raise ValueError(remote + " The bundled release could not be verified. " + str(exc)) from exc
+    return {"ok": True, "available": False, "status": "bundled", "version": version,
+            "github_status": remote_status, "github_detail": detail[:400]}
 
 
 def _check_package(raw, manifest):
@@ -369,7 +426,7 @@ def _build_and_scan(root, stage, files, version):
 def prepare_update(root, feed, installed, expected_version, expected_sha256):
     root = Path(root).resolve(strict=True)
     current = _version(installed)
-    manifest, location = _manifest(feed)
+    manifest, location, signed_content = _manifest(feed)
     if (manifest["version"] != expected_version
             or not hmac.compare_digest(manifest["sha256"], _sha(expected_sha256))):
         raise ValueError("The release changed after checking. Check again before installing.")
@@ -382,7 +439,8 @@ def prepare_update(root, feed, installed, expected_version, expected_sha256):
         baseline_hash = hashlib.file_digest(existing, "sha256").hexdigest()
     if _file_version(exe) != current:
         raise ValueError("The current installation changed. Open its dashboard and check again.")
-    files = _check_package(_read(location, manifest["size"]), manifest)
+    package = _read(location, manifest["size"])
+    files = _check_package(package, manifest)
     # The three documentation names are part of the 0.6.x signed wire format.
     # The journal and its backups use real paths, so rollback never needs to
     # guess which layout was active when the update was prepared.
@@ -406,6 +464,9 @@ def prepare_update(root, feed, installed, expected_version, expected_sha256):
             raise ValueError("The installation changed during preparation. Check again.")
         hashes = {name: hashlib.sha256(data).hexdigest() for name, data in files.items()}
         hashes["LiveTranslate.exe"] = hashlib.sha256((stage / "LiveTranslate.exe").read_bytes()).hexdigest()
+        if signed_content is not None:
+            from installed_feed import cache_official_snapshot
+            cache_official_snapshot(root, signed_content, package)
         from update_install import publish_stage
         stage_id = publish_stage(root, stage, hashes, base_hash=baseline_hash)
         published = True
@@ -424,12 +485,17 @@ def main():
     parser.add_argument("--sha256")
     parser.add_argument("--serve-local", action="store_true",
                         help="start the bundled loopback release server for a local latest.json feed")
+    parser.add_argument("--automatic", action="store_true", help="check GitHub with a signed offline status fallback")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     args = parser.parse_args()
     try:
+        if args.automatic and (args.command != "check" or args.serve_local):
+            raise ValueError("Automatic fallback is only available when checking the official GitHub repository.")
         with _active_feed(args.feed, args.serve_local) as feed:
-            if args.command == "check":
-                result = check_update(feed, args.installed)
+            if args.automatic:
+                result = automatic_check(feed, args.installed, args.root)
+            elif args.command == "check":
+                result = check_update(feed, args.installed, args.root)
             else:
                 result = prepare_update(args.root, feed, args.installed, args.version, args.sha256)
         print(json.dumps(result, ensure_ascii=True))

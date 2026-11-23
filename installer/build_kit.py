@@ -4,7 +4,11 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 import zipfile
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "publisher"))
+from github_publish import check_signature, parse
 
 
 def read_package(portable, version):
@@ -25,6 +29,20 @@ def read_package(portable, version):
                     raise ValueError("Duplicate release member")
                 with archive.open(f) as stream:
                     records[name.casefold()] = [name, f.file_size, hashlib.file_digest(stream,"sha256").hexdigest()]
+            if tuple(map(int, version.split("."))) >= (0, 6, 9):
+                prefix = "LiveTranslate/updates/feed/"
+                package_name = f"LiveTranslate-{version}.json"
+                members = {name for name in archive.namelist() if name.startswith(prefix)}
+                if members != {prefix + "latest.json", prefix + package_name}:
+                    raise ValueError("Expected one signed full release in the bundled local feed.")
+                if records["updates/feed/latest.json"][1] > 64 * 1024:
+                    raise ValueError("Bundled update manifest exceeds the size limit.")
+                # Independently recheck the archive that will be embedded in the graphical installer.
+                meta = parse(archive.read(prefix + "latest.json"))
+                entry = records[("updates/feed/" + package_name).casefold()]
+                if meta.get("version") != version or meta.get("package") != package_name or meta.get("size") != entry[1] or meta.get("sha256") != entry[2]:
+                    raise ValueError("Bundled release does not match its installed package.")
+                check_signature(meta)
     layout = tuple(map(int, version.split("."))) >= (0, 6, 8)
     if not {"livetranslate.exe", "scripts/start.cmd" if layout else "start.cmd", "backend/worker.py"}.issubset(records):
         raise ValueError("Incomplete portable ZIP")
@@ -62,6 +80,6 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--portable",type=Path,required=True)
     p.add_argument("--output",type=Path,required=True)
-    p.add_argument("--version",default="0.6.8")
+    p.add_argument("--version",default="0.6.9")
     args = p.parse_args()
     build(args.portable,args.output,args.version)

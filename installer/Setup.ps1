@@ -223,6 +223,59 @@ function Save-LayoutConflict([string]$file,[string]$stage,[string]$relative) {
     [IO.File]::Copy($file,$path)
 }
 
+function Test-StockFeed([string]$appDir,$records) {
+    $entries = @($records.Values | Where-Object { ([string]$_[0]).StartsWith('updates/feed/',[StringComparison]::OrdinalIgnoreCase) })
+    if ($entries.Count -ne 2) { return $false }
+    foreach ($record in $entries) {
+        $file = Under $appDir $record[0]
+        Plain-Path $file
+        if (![IO.File]::Exists($file) -or ([IO.FileInfo]$file).Length -ne [long]$record[1] -or
+                (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ine $record[2]) { return $false }
+    }
+    return $true
+}
+
+function Copy-RetainedFiles([string]$appDir,[string]$stage,$records,$actual) {
+    $oldList = Under $appDir '.lt-setup/files.json'
+    $oldNames = @{}
+    # The current kit already identifies every owned file for a
+    # same-version repair, even if its installed file list broke.
+    if ([IO.File]::Exists($oldList)) {
+        try {
+            foreach ($row in ([IO.File]::ReadAllText($oldList) | ConvertFrom-Json)) { $oldNames[[string]$row[0]] = $row }
+        } catch { $oldNames = @{} }
+    }
+    $preserve = @{}
+    $ownedFeed = (Test-StockFeed $appDir $records) -or (Test-StockFeed $appDir $oldNames)
+    foreach ($file in (Walk-Files $appDir)) {
+        $name = $file.Substring($appDir.Length+1).Replace('\','/')
+        $customFeedFile = (!$ownedFeed -and $name.StartsWith('updates/feed/',[StringComparison]::OrdinalIgnoreCase))
+        if ($customFeedFile -and $records.ContainsKey($name)) {
+            $preserve['previous-feed/' + $name.Substring(13)] = $file
+            continue
+        }
+        if ($legacyRoot.ContainsKey($name)) {
+            if ((Get-FileHash -LiteralPath $file).Hash -ine $legacyRoot[$name]) { $preserve['previous-root/' + $name] = $file }
+            continue
+        }
+        if ($records.ContainsKey($name)) {
+            $leaf = [IO.Path]::GetFileName($name)
+            if ($oldNames.ContainsKey('Start.cmd') -and !$oldNames.ContainsKey($name) -and
+                    $legacyRoot.ContainsKey($leaf) -and (Get-FileHash -LiteralPath $file).Hash -ine $records[$name][2]) {
+                $preserve['previous-destination/' + $name] = $file
+            }
+            continue
+        }
+        if ($name.StartsWith('.lt-setup/') -or (!$customFeedFile -and $actual -ne $releaseVersion -and $oldNames.ContainsKey($name))) { continue }
+        if ($name.StartsWith('.livetranslate-update/')) { continue }
+        if ($name -eq 'setup.lock' -and !([IO.FileInfo]$file).Length) { continue }
+        $copy = Under $stage $name
+        [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($copy))
+        [IO.File]::Copy($file,$copy)
+    }
+    foreach ($name in $preserve.Keys) { Save-LayoutConflict $preserve[$name] $stage $name }
+}
+
 function Install-Portable([string]$source,[string]$base,[string]$menu) {
     $records = Read-List
     $guard = Open-Managed $base $true
@@ -252,38 +305,7 @@ function Install-Portable([string]$source,[string]$base,[string]$menu) {
         try {
             Stage-Portable $source $stage $records
             if ([IO.Directory]::Exists($appDir)) {
-                $oldList = Under $appDir '.lt-setup/files.json'
-                $oldNames = @{}
-                # The current kit already identifies every owned file for a
-                # same-version repair, even if its installed file list broke.
-                if ([IO.File]::Exists($oldList)) {
-                    try {
-                        foreach ($row in ([IO.File]::ReadAllText($oldList) | ConvertFrom-Json)) { $oldNames[[string]$row[0]] = $true }
-                    } catch { $oldNames = @{} }
-                }
-                $preserve = @{}
-                foreach ($file in (Walk-Files $appDir)) {
-                    $name = $file.Substring($appDir.Length+1).Replace('\','/')
-                    if ($legacyRoot.ContainsKey($name)) {
-                        if ((Get-FileHash -LiteralPath $file).Hash -ine $legacyRoot[$name]) { $preserve['previous-root/' + $name] = $file }
-                        continue
-                    }
-                    if ($records.ContainsKey($name)) {
-                        $leaf = [IO.Path]::GetFileName($name)
-                        if ($oldNames.ContainsKey('Start.cmd') -and !$oldNames.ContainsKey($name) -and
-                                $legacyRoot.ContainsKey($leaf) -and (Get-FileHash -LiteralPath $file).Hash -ine $records[$name][2]) {
-                            $preserve['previous-destination/' + $name] = $file
-                        }
-                        continue
-                    }
-                    if ($name.StartsWith('.lt-setup/') -or ($actual -ne $releaseVersion -and $oldNames.ContainsKey($name))) { continue }
-                    if ($name.StartsWith('.livetranslate-update/')) { continue }
-                    if ($name -eq 'setup.lock' -and !([IO.FileInfo]$file).Length) { continue }
-                    $copy = Under $stage $name
-                    [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($copy))
-                    [IO.File]::Copy($file,$copy)
-                }
-                foreach ($name in $preserve.Keys) { Save-LayoutConflict $preserve[$name] $stage $name }
+                Copy-RetainedFiles $appDir $stage $records $actual
                 Check-Idle $appDir
             }
             $support = Under $stage '.lt-setup'
@@ -305,6 +327,22 @@ function Install-Portable([string]$source,[string]$base,[string]$menu) {
     } finally { $guard.Dispose() }
 }
 
+function Remove-PackagedFiles([string]$appDir,$records) {
+    $stockFeed = Test-StockFeed $appDir $records
+    foreach ($record in $records.Values) {
+        if (!$stockFeed -and ([string]$record[0]).StartsWith('updates/feed/',[StringComparison]::OrdinalIgnoreCase)) { continue }
+        $file = Under $appDir $record[0]
+        Plain-Path $file
+        if ([IO.File]::Exists($file)) { [IO.File]::Delete($file) }
+    }
+    if ($stockFeed) {
+        foreach ($name in @('updates/feed','updates')) {
+            $folder = Under $appDir $name
+            if ([IO.Directory]::Exists($folder) -and ![IO.Directory]::GetFileSystemEntries($folder).Length) { [IO.Directory]::Delete($folder) }
+        }
+    }
+}
+
 function Uninstall-Portable([string]$base,[string]$menu,[bool]$erase) {
     $records = Read-List
     $guard = Open-Managed $base $false
@@ -315,11 +353,7 @@ function Uninstall-Portable([string]$base,[string]$menu,[bool]$erase) {
         if ([IO.Directory]::Exists((Under $base 'previous'))) { throw 'Open the setup kit to finish recovering the prior installation first.' }
         if ($erase) { Remove-ManagedTree $base 'app' }
         else {
-            foreach ($record in $records.Values) {
-                $file = Under $appDir $record[0]
-                Plain-Path $file
-                if ([IO.File]::Exists($file)) { [IO.File]::Delete($file) }
-            }
+            Remove-PackagedFiles $appDir $records
         }
         Setup-Links $menu $appDir $true
         if (!$erase) {
