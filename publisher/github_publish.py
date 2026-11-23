@@ -1,4 +1,4 @@
-"""Publish a checked LiveTranslate feed to the owner's private GitHub Releases."""
+"""Publish a checked LiveTranslate feed to the owner's public GitHub Releases."""
 import argparse
 import hashlib
 import importlib.util
@@ -139,10 +139,10 @@ class GitHub:
         self.run(["release","upload",tag,str(path),"--repo","github.com/"+REPO])
 
 
-def require_private(gh):
+def require_public(gh):
     repo = gh.api(API)
-    if repo.get("full_name","").casefold() != REPO.casefold() or repo.get("private") is not True:
-        raise ValueError("The target must be the dedicated private repository " + REPO + ".")
+    if repo.get("full_name","").casefold() != REPO.casefold() or repo.get("private") is not False or repo.get("visibility", "public") != "public":
+        raise ValueError("The target must be the dedicated public repository " + REPO + ".")
     if not repo.get("permissions",{}).get("push"):
         raise ValueError("Push access is required for " + REPO + ".")
 
@@ -195,26 +195,26 @@ def verified_assets(gh, release, assets):
     return found
 
 
-def publish(gh, version, assets, sources, init_private=False):
+def publish(gh, version, assets, sources, init_public=False):
     check_signature(parse(assets["latest.json"]))
     if gh.api("user").get("login","").casefold() != OWNER.casefold():
         raise ValueError("The active github.com account must be " + OWNER + ".")
     repo = gh.api(API, optional=True)
     if repo is None:
-        if not init_private:
-            raise ValueError("Private repository missing or inaccessible. Use --init-private only to create it.")
-        gh.api("user/repos",method="POST",body={"name":NAME,"private":True,"auto_init":False})
-    require_private(gh)
+        if not init_public:
+            raise ValueError("Public repository missing or inaccessible. Use --init-public only to create it.")
+        gh.api("user/repos",method="POST",body={"name":NAME,"private":False,"auto_init":False})
+    require_public(gh)
     guard_latest(gh, version)
     tag = "v"+version
     release = locate(gh,tag)
     if release is not None:
         # Check for a conflicting preexisting tag/release before pushing Git refs.
         verified_assets(gh, release, assets)
-    require_private(gh)
+    require_public(gh)
     sources.sync(gh)
     if release is None:
-        require_private(gh)
+        require_public(gh)
         release = gh.api(API+"/releases",method="POST",body={"tag_name":tag,"target_commitish":sources.commit,"name":"LiveTranslate "+version,
                          "body":"Stable Windows update. The numbered package and latest.json form the application feed.",
                          "draft":True,"prerelease":False})
@@ -237,7 +237,7 @@ def publish(gh, version, assets, sources, init_private=False):
     with tempfile.TemporaryDirectory(prefix="LiveTranslate-release-") as temp:
         for name, data in assets.items():
             if name not in found:
-                require_private(gh)
+                require_public(gh)
                 if not current()["draft"]:
                     raise ValueError("The draft changed during upload. Inspect it and retry.")
                 local = Path(temp)/name
@@ -247,7 +247,7 @@ def publish(gh, version, assets, sources, init_private=False):
     if verified_assets(gh,final,assets) != set(assets):
         raise ValueError("Missing required asset. The draft is incomplete.")
     if final["draft"]:
-        require_private(gh)
+        require_public(gh)
         guard_latest(gh, version)
         if sources.refs(gh).get("refs/tags/"+tag) != sources.tag_id:
             raise ValueError("The remote source tag changed before publication.")
@@ -255,7 +255,7 @@ def publish(gh, version, assets, sources, init_private=False):
     if current()["draft"] or verified_assets(gh,current(),assets) != set(assets):
         raise ValueError("Release publication could not be verified.")
     verify_latest(gh,release_id,tag)
-    return "Verified private stable release at https://github.com/"+REPO+"/releases/tag/"+tag
+    return "Verified public stable release at https://github.com/"+REPO+"/releases/tag/"+tag
 
 
 def main():
@@ -264,13 +264,13 @@ def main():
     parser.add_argument("--source-bundle",type=Path,default=None,help="version-matched bundle with main and vX.Y.Z; default ../LiveTranslate-source.bundle next to this publisher directory")
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--dry-run",action="store_true",help="offline validation; the default")
-    action.add_argument("--publish",action="store_true",help="upload validated files to a private draft, verify and publish")
-    parser.add_argument("--init-private",action="store_true",help="create the dedicated private repo when missing")
+    action.add_argument("--publish",action="store_true",help="upload validated files to a draft in the public repository, verify and publish")
+    parser.add_argument("--init-public",action="store_true",help="create the dedicated public repo when missing")
     args = parser.parse_args()
-    if args.init_private and not args.publish:
-        parser.error("--init-private requires --publish")
+    if args.init_public and not args.publish:
+        parser.error("--init-public requires --publish")
     version, assets = load_feed(args.feed)
-    print(f"{REPO} (private)   v{version}")
+    print(f"{REPO} (public)   v{version}")
     for name,data in assets.items():
         print(f"{name}   {len(data):,} bytes   SHA-256 {sha(data)}")
     manifest = parse(assets["latest.json"])
@@ -286,7 +286,7 @@ def main():
             sources = open_sources(bundle,temp,version,assets)
             print(f"Tagged source v{version} matches all update files. Commit {sources.commit}.")
         if args.publish:
-            print(publish(GitHub(),version,assets,sources,args.init_private))
+            print(publish(GitHub(),version,assets,sources,args.init_public))
         elif sources:
             print("Offline preview passed.")
         else:

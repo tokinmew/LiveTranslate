@@ -11,13 +11,12 @@ def run(directory):
     backend = Path(__file__).resolve().parents[1] / "LiveTranslate/backend"
     sys.path.insert(0, str(backend))
     import app_updates
+    import github_releases
     import update_install
     sha = lambda value: hashlib.sha256(value).hexdigest()
     with tempfile.TemporaryDirectory(dir=directory, prefix="u68-") as tmp:
         tmp = Path(tmp)
         root = tmp / "organized"
-        feed = tmp / "feed"
-        feed.mkdir()
         for group in ("docs","scripts","ui","backend"):
             (root / group).mkdir(parents=True)
         (root / "scripts/Prepare-Offline.ps1").write_text("synthetic")
@@ -29,13 +28,15 @@ def run(directory):
         raw = json.dumps({"version": "0.6.9", "files": records}).encode()
         manifest = {"schema": 1, "product": "LiveTranslate", "version": "0.6.9", "package": "LiveTranslate-0.6.9.json",
                     "size": len(raw), "sha256": sha(raw)}
-        (feed / manifest["package"]).write_bytes(raw)
-        (feed / "latest.json").write_text(json.dumps(manifest))
+        asset = github_releases.Asset("repos/tokinmew/LiveTranslate/releases/assets/2", len(raw), sha(raw))
 
         def build(root, stage, files, version):
             (stage / "LiveTranslate.exe").write_bytes(b"new executable")
-        with patch.object(app_updates, "_file_version", return_value=(0, 6, 8, 0)), patch.object(app_updates, "_build_and_scan", build):
-            key = app_updates.prepare_update(root, str(feed), "0.6.8", "0.6.9", sha(raw))["stage"]
+        with patch.object(app_updates, "_file_version", return_value=(0, 6, 8, 0)), \
+                patch.object(app_updates, "_build_and_scan", build), \
+                patch.object(app_updates, "_manifest", return_value=(manifest, asset)), \
+                patch.object(github_releases, "public_read", return_value=raw):
+            key = app_updates.prepare_update(root, "0.6.8", "0.6.9", sha(raw))["stage"]
         state = root / update_install._STATE
         _, receipt = update_install._receipt(state, key)
         assert all("docs/" + name in receipt["files"] and name not in receipt["files"] for name in docs)

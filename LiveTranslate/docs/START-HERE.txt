@@ -11,10 +11,10 @@ multilingual written pack under Settings, Language files, Get more text language
 
 For spoken translations, open Settings and Spoken English. Select an
 installed English voice and an output device, then enable spoken playback.
-For updates, open Settings, Updates and select Check for updates. Automatic
-updates first checks GitHub. If no published release is available there,
-the app can check the signed release stored on this PC. Private GitHub
-downloads require the free GitHub CLI signed into an account with access.
+For updates, open Settings, Updates and select Check for updates. Updates
+come only from the official public GitHub Releases channel. No sign-in is
+needed. Local manifests and old update-source preferences are ignored.
+If GitHub is unavailable, the app reports that it could not check.
 
 1. If you use the portable ZIP, extract it to a writable local folder
    with about 3 GB free. Inside LiveTranslate, double-click LiveTranslate.exe.

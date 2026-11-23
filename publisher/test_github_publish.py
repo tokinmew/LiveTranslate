@@ -14,7 +14,7 @@ import github_publish as pub
 class GitHub:
     def __init__(self):
         self.login = pub.OWNER
-        self.repo = {"full_name":pub.REPO,"private":True,"permissions":{"push":True}}
+        self.repo = {"full_name":pub.REPO,"private":False,"permissions":{"push":True}}
         self.release = None
         self.latest = None
         self.files = {}
@@ -28,8 +28,8 @@ class GitHub:
         if path == "user":
             return {"login": self.login}
         if path == "user/repos":
-            assert body == {"private":True, "name":pub.NAME,"auto_init":False} and self.repo is None
-            self.repo = {"full_name":pub.REPO,"private":True,"permissions":{"push":True}}
+            assert body == {"private":False, "name":pub.NAME,"auto_init":False} and self.repo is None
+            self.repo = {"full_name":pub.REPO,"private":False,"permissions":{"push":True}}
             return self.repo
         if path == pub.API:
             return self.repo
@@ -78,20 +78,20 @@ class Publication(unittest.TestCase):
     def publish(self,initialize=False):
         return pub.publish(self.gh, "0.6.5", self.files, self.sources, initialize)
 
-    def test_successful_private_draft_and_idempotent_retry(self):
+    def test_successful_public_draft_and_idempotent_retry(self):
         self.assertIn("Verified",self.publish())
         self.assertFalse(self.gh.release["draft"])
         count = len(self.gh.actions)
         self.assertIn("already",self.publish())
         self.assertEqual(count,len(self.gh.actions))
 
-    def test_private_creation_is_explicit_and_verifies_owner(self):
+    def test_public_creation_is_explicit_and_verifies_owner(self):
         self.gh.repo = None
         with self.assertRaisesRegex(ValueError,"missing"):
             self.publish()
         self.assertFalse(self.gh.actions)
         self.publish(True)
-        self.assertTrue(self.gh.repo["private"])
+        self.assertFalse(self.gh.repo["private"])
         self.assertEqual(("POST","user/repos"),self.gh.actions[0])
 
     def test_refuses_wrong_account(self):
@@ -100,13 +100,34 @@ class Publication(unittest.TestCase):
             self.publish(True)
         self.assertFalse(self.gh.actions)
 
-    def test_refuses_public_or_different_target(self):
-        for change in ({"private":False},{"full_name":"tokinmew/other"},{"permissions":{}}):
+    def test_refuses_private_or_different_target(self):
+        for change in ({"private":True},{"private":None},{"visibility":"internal"},{"full_name":"tokinmew/other"},{"permissions":{}}):
             self.gh=GitHub()
             self.gh.repo.update(change)
             with self.assertRaises(ValueError):
                 self.publish()
             self.assertFalse(self.gh.actions)
+            self.sources.sync.assert_not_called()
+
+    def test_public_initialization_never_changes_existing_private_visibility(self):
+        self.gh.repo["private"] = True
+        with self.assertRaisesRegex(ValueError, "public repository"):
+            self.publish(True)
+        self.assertTrue(self.gh.repo["private"])
+        self.assertFalse(self.gh.actions)
+        self.sources.sync.assert_not_called()
+
+    def test_visibility_change_during_upload_blocks_publication(self):
+        upload = self.gh.upload
+        def make_private_after_upload(tag, path):
+            upload(tag, path)
+            if len(self.gh.files) == len(self.files):
+                self.gh.repo["private"] = True
+        self.gh.upload = make_private_after_upload
+        with self.assertRaisesRegex(ValueError, "public repository"):
+            self.publish()
+        self.assertTrue(self.gh.release["draft"])
+        self.assertNotIn(("PATCH", pub.API + "/releases/1"), self.gh.actions)
 
     def test_rejects_rollback(self):
         self.gh.latest = {"tag_name":"v0.6.6"}

@@ -38,17 +38,22 @@ def add_stream(target, info, stream):
     return digest.hexdigest()
 
 
-def release_feed(app, directory):
+def release_version(app):
     source = (app / "ui/Program.cs").read_text("utf-8-sig")
     match = re.search(r'\bAssemblyFileVersion\("(\d+\.\d+\.\d+)\.0"\)', source)
     if not match:
         raise ValueError("The dashboard is missing its Windows release version.")
+    return match[1]
+
+
+def release_feed(app, directory):
+    version_text = release_version(app)
     if directory is None:
-        if tuple(map(int, match[1].split("."))) < (0, 6, 9):
+        if tuple(map(int, version_text.split("."))) != (0, 6, 9):
             return {}, []
         raise ValueError("The official signed local update feed is required for this release.")
     version, assets = load_feed(directory)
-    if version != match[1]:
+    if version != version_text:
         raise ValueError("The signed local feed and dashboard versions differ.")
     manifest = parse(assets["latest.json"])
     check_signature(manifest)
@@ -72,6 +77,7 @@ def build(app, base, output, feed=None):
     if missing:
         raise ValueError("Build the organized app first. Missing: " + ", ".join(sorted(missing)))
     assets, records = release_feed(app, feed)
+    github_only = tuple(map(int, release_version(app).split("."))) >= (0, 6, 10)
     output.parent.mkdir(parents=True, exist_ok=True)
     with base.open("rb") as baseline, tempfile.TemporaryDirectory(dir=output.parent) as temp:
         if digest_stream(baseline) != BASE_SHA256:
@@ -82,6 +88,8 @@ def build(app, base, output, feed=None):
         with zipfile.ZipFile(baseline) as previous, zipfile.ZipFile(made,"x",zipfile.ZIP_DEFLATED,compresslevel=6) as target:
             for info in previous.infolist():
                 name = info.filename.removeprefix(PREFIX)
+                if github_only and name.startswith("updates/"):
+                    continue
                 if "/" not in name:
                     if name != "LiveTranslate.exe" and not any(folder + "/" + name in sources for folder in ("docs","scripts","config")):
                         raise ValueError("No organized source for previous root file " + name)
@@ -103,10 +111,10 @@ def build(app, base, output, feed=None):
                 info = zipfile.ZipInfo.from_file(path, PREFIX + name)
                 # The desktop installer compresses this section as a single native
                 # Windows stream, sharing the signed feed's repeated source bytes.
-                info.compress_type = zipfile.ZIP_STORED if assets else zipfile.ZIP_DEFLATED
+                info.compress_type = zipfile.ZIP_STORED if assets and not github_only else zipfile.ZIP_DEFLATED
                 with path.open("rb") as stream:
                     expected[info.filename] = add_stream(target, info, stream)
-            for name, data in assets.items():
+            for name, data in (assets.items() if not github_only else ()):
                 member = PREFIX + "updates/feed/" + name
                 target.writestr(member, data, compress_type=zipfile.ZIP_STORED)
                 expected[member] = hashlib.sha256(data).hexdigest()

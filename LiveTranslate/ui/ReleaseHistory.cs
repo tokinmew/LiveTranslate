@@ -25,6 +25,9 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.6.10", "Updates through GitHub Releases",
+                "Check for updates uses the official LiveTranslate GitHub release channel. Old local feed choices no longer control which version is offered.",
+                "Removed local manifest selection and bundled release fallback. Connection failures show an actionable error instead of reporting a local version as current."),
             new ReleaseNote("0.6.9", "Reliable first-run verification and update checks",
                 "Check for updates looks for a published GitHub release. If it cannot reach one, the app can show the version in its signed local feed and explain what happened on GitHub.",
                 "Existing custom update sources remain selectable under Settings, Updates. You can also choose Automatic updates to return to the project's release channel.",

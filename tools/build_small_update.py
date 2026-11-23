@@ -1,4 +1,4 @@
-"""Package a cumulative update for prepared Windows 0.6.x installs."""
+"""Archive recovery packages for releases through 0.6.9; newer updates require GitHub."""
 from pathlib import Path
 import hashlib
 import json
@@ -14,6 +14,8 @@ base = here/"bootstrap"
 manifest = (feed/"latest.json").read_bytes()
 meta = json.loads(manifest)
 version = meta["version"]
+if tuple(map(int, version.split("."))) >= (0, 6, 10):
+    raise ValueError("LiveTranslate 0.6.10 and later updates must be published to public GitHub Releases and installed in the app.")
 match = re.fullmatch(r"0\.6\.([1-9][0-9]*)", version)
 if not match:
     raise ValueError("This bootstrap only supports the 0.6.x product line.")

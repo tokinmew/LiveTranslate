@@ -29,7 +29,11 @@ def read_package(portable, version):
                     raise ValueError("Duplicate release member")
                 with archive.open(f) as stream:
                     records[name.casefold()] = [name, f.file_size, hashlib.file_digest(stream,"sha256").hexdigest()]
-            if tuple(map(int, version.split("."))) >= (0, 6, 9):
+            version_parts = tuple(map(int, version.split(".")))
+            if version_parts >= (0, 6, 10):
+                if any(name.startswith("updates/feed/") for name in records):
+                    raise ValueError("GitHub-only releases must not bundle a local update feed.")
+            elif version_parts == (0, 6, 9):
                 prefix = "LiveTranslate/updates/feed/"
                 package_name = f"LiveTranslate-{version}.json"
                 members = {name for name in archive.namelist() if name.startswith(prefix)}

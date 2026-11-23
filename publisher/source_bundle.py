@@ -1,4 +1,4 @@
-"""Verify release sources and push only to the dedicated private repository."""
+"""Verify release sources and push only to the dedicated public repository."""
 import io
 import json
 import os
@@ -93,7 +93,7 @@ class Sources:
         result = subprocess.run([str(self.git),*options,*args], cwd=self.gitdir, env=env, input=stdin,
                                 capture_output=True,timeout=120)
         if result.returncode:
-            raise ValueError("Git could not complete "+args[0]+". Check the bundle, private repository access and remote refs.")
+            raise ValueError("Git could not complete "+args[0]+". Check the bundle, public repository write access and remote refs.")
         return result.stdout
 
     def refs(self, gh):

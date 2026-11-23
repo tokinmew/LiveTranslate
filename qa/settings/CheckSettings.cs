@@ -82,7 +82,6 @@ internal static class CheckSettings
             for (int i=0;i<tabs.TabCount;i++)
             {
                 tabs.SelectedIndex=i; Application.DoEvents();
-                if (i == 2) Call(app, "SetReleaseSource", "https://github.com/tokinmew/LiveTranslate", false);
                 if (i == 3)
                 {
                     foreach (string name in new[] { "spokenVoice", "spokenDevice" })
@@ -113,12 +112,14 @@ internal static class CheckSettings
             {
                 app.GetType().GetField("updateJob",Private).SetValue(app,job); Call(app,"RefreshUpdateActions");
                 var cancel = Field<Button>(app,"cancelUpdate");
-                Check(cancel.Visible && !Field<TextBox>(app,"updateSource").Enabled && Field<ProgressBar>(app,"updateActivity").Visible,"checking a source locks its address and shows cancellation and activity");
+                Check(cancel.Visible && !Field<Button>(app,"checkUpdates").Enabled && Field<ProgressBar>(app,"updateActivity").Visible,"checking GitHub prevents duplicate checks and shows cancellation and activity");
                 cancel.PerformClick(); Check(job.IsCancellationRequested,"Cancel signals the active update job");
                 app.GetType().GetField("updateJob",Private).SetValue(app,null); Call(app,"RefreshUpdateActions");
             }
-            Field<TextBox>(app,"updateSource").Text="";
-            Check(!download.Visible && !Field<ProgressBar>(app,"updateActivity").Visible,"editing the feed invalidates its offer and clears activity");
+            app.GetType().GetField("offeredVersion",Private).SetValue(app,null);
+            app.GetType().GetField("offeredDigest",Private).SetValue(app,null);
+            Call(app,"RefreshUpdateActions");
+            Check(!download.Visible && !Field<ProgressBar>(app,"updateActivity").Visible,"clearing a release offer hides download and activity");
             Call(app,"RememberProcessingSettings");
             app.GetType().GetField("screenSession", Private).SetValue(app,"untouched-fixture");
             Call(form,"ProcessDialogKey", Keys.Escape);

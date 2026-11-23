@@ -33,10 +33,10 @@ try {
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     $meta = Get-Content -LiteralPath $feed -Raw -Encoding UTF8 | ConvertFrom-Json
     $choice = [Windows.Forms.MessageBox]::Show(
-        "Publish the tagged source and signed update for version $($meta.version) to private tokinmew/LiveTranslate? This creates the private repository if needed and makes the stable release available to its collaborators.",
+        "Publish the tagged source and signed update for version $($meta.version) to public tokinmew/LiveTranslate? This creates the public repository if needed. The source, history and release assets will be publicly accessible; installed apps can download updates without signing in.",
         'Publish LiveTranslate update','YesNo','Question','Button2')
     if ($choice -ne 'Yes') { exit 0 }
-    & $python -I -B -X utf8 $tool --feed $dir --publish --init-private
+    & $python -I -B -X utf8 $tool --feed $dir --publish --init-public
     if ($LASTEXITCODE) { exit $LASTEXITCODE }
     [void][Windows.Forms.MessageBox]::Show("Verified release v$($meta.version).", 'LiveTranslate publisher')
 } catch {
