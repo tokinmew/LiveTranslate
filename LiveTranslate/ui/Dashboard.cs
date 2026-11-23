@@ -442,7 +442,7 @@ namespace LiveTranslate
             audioModel.Items.AddRange(new object[] { "base", "small", "medium" });
             audioModel.SelectedIndex = 0;
             AddSetting(controls, 1, "Speech model", audioModel);
-            bool offersDialogue = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DialogueInstaller));
+            bool offersDialogue = File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scripts", DialogueInstaller));
             koreanDialogue = Combo();
             koreanDialogue.Items.Add("Standard");
             if (offersDialogue)

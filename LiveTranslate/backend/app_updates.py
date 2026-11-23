@@ -383,6 +383,12 @@ def prepare_update(root, feed, installed, expected_version, expected_sha256):
     if _file_version(exe) != current:
         raise ValueError("The current installation changed. Open its dashboard and check again.")
     files = _check_package(_read(location, manifest["size"]), manifest)
+    # The three documentation names are part of the 0.6.x signed wire format.
+    # The journal and its backups use real paths, so rollback never needs to
+    # guess which layout was active when the update was prepared.
+    if (root / "docs").is_dir() and (root / "scripts" / "Prepare-Offline.ps1").is_file():
+        files = {("docs/" + name if name in {"README.md", "VALIDATION.md", "START-HERE.txt"} else name): data
+                 for name, data in files.items()}
     work = root / ".livetranslate-update"
     work.mkdir(exist_ok=True)
     if _reparse(work) or not work.is_dir():

@@ -62,7 +62,10 @@ class Sources:
                     entries[name] = oid
         ids = []
         for record in files:
-            path = ("LiveTranslate/"+record["path"]).encode("utf8")
+            logical = record["path"]
+            if tuple(map(int, version.split("."))) >= (0,6,8) and logical in ("README.md","START-HERE.txt","VALIDATION.md"):
+                logical = "docs/" + logical
+            path = ("LiveTranslate/"+logical).encode("utf8")
             if path not in entries:
                 raise ValueError("Tagged source bundle is missing a regular file: "+record["path"])
             ids.append(entries[path])

@@ -16,12 +16,13 @@ class CheckedSetupTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        (self.root / "backend").mkdir()
-        for name in ("Get-CheckedModels.ps1", "backend/verify_reviewed_models.py", "backend/check_models.py"):
+        for folder in ("backend", "scripts", "config"):
+            (self.root / folder).mkdir()
+        for name in ("scripts/Get-CheckedModels.ps1", "backend/verify_reviewed_models.py", "backend/check_models.py"):
             (self.root / name).write_text("# local test input", encoding="utf-8")
         self.files = [{"kind": kind, "name": f"{kind}-{number}"}
                       for kind, count in (("text", 4), ("ocr", 5), ("speech", 4)) for number in range(count)]
-        (self.root / "model-sources.json").write_text(json.dumps({"files": self.files}), encoding="utf-8")
+        (self.root / "config" / "model-sources.json").write_text(json.dumps({"files": self.files}), encoding="utf-8")
         self.cancel = threading.Event()
         self.trace = []
         self.importer = Mock(side_effect=lambda *args: self.trace.append("import"))
@@ -100,7 +101,7 @@ class CheckedSetupTests(unittest.TestCase):
         self.importer.assert_not_called()
 
     def test_missing_manifest_fails_before_process_start(self):
-        (self.root / "model-sources.json").unlink()
+        (self.root / "config" / "model-sources.json").unlink()
         with self.assertRaisesRegex(RuntimeError, "complete checked edition"):
             self.setup.install()
         self.runner.assert_not_called()

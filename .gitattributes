@@ -1,0 +1,6 @@
+# These distribution files are hashed byte-for-byte by the offline installer,
+# model checks or legacy layout migration. Preserve the bytes used at release.
+LiveTranslate/scripts/** -text
+LiveTranslate/config/** -text
+LiveTranslate/docs/** -text
+LiveTranslate/quality/scan.ps1 -text

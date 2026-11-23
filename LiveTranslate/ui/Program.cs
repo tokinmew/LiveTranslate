@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.6.7.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.7.0")]
+[assembly: System.Reflection.AssemblyVersion("0.6.8.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.6.8.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -47,6 +47,8 @@ namespace LiveTranslate
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             if (UpdateStartup.HandOffIfBusy()) return;
+            string root = AppDomain.CurrentDomain.BaseDirectory;
+            if (!LayoutMigration.EnsureOrganized(root) || !FirstRun.EnsureReady(root)) return;
             Application.Run(new MainForm());
         }
     }
@@ -1409,7 +1411,7 @@ namespace LiveTranslate
                 : "/d /v:off /c .\\Setup.cmd --non-interactive";
             return new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe"), args)
             {
-                WorkingDirectory = directory, UseShellExecute = interactive, CreateNoWindow = !interactive,
+                WorkingDirectory = Path.Combine(directory, "scripts"), UseShellExecute = interactive, CreateNoWindow = !interactive,
                 WindowStyle = ProcessWindowStyle.Normal, RedirectStandardOutput = !interactive, RedirectStandardError = !interactive
             };
         }
@@ -1430,7 +1432,7 @@ namespace LiveTranslate
             }
 
             string batch = interactive ? DialogueInstaller : setup == ComponentSetup.Quality ? "Install quality models.cmd" : "Setup.cmd";
-            string setupFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, batch);
+            string setupFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scripts", batch);
             if (!File.Exists(setupFile))
             {
                 Append("SETUP", batch + " is missing. Extract the entire ZIP before opening this app.");

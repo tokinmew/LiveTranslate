@@ -1,6 +1,6 @@
-# LiveTranslate 0.6.7 release owner guide
+# LiveTranslate 0.6.8 release owner guide
 
-The **feed** directory holds the signed Windows update. **LiveTranslate-source.bundle** contains the editable source and the original tags from 0.6.4 through 0.6.7. The public key embedded in LiveTranslate verifies the release manifest. The manifest identifies the package by version, size, and SHA-256. The publisher compares every packaged source file against its release tag before publication.
+The **feed** directory holds the signed Windows update. **LiveTranslate-source.bundle** contains the editable source and the release tags from 0.6.4 through 0.6.8. The public key embedded in LiveTranslate verifies the release manifest. The manifest identifies the package by version, size, and SHA-256. The publisher compares every packaged source file against its release tag before publication.
 
 Use **FIELD-TEST.md** to record desktop results on Tokin's PC and physical PC VR results with A51's headset. A51 owns headset validation. Desktop work can proceed independently.
 
@@ -18,7 +18,7 @@ git clone --branch main LiveTranslate-source.bundle LiveTranslate-source
 
 ## Rebuild or test locally
 
-From the cloned source directory, open **LiveTranslate/Build.cmd** to compile the Windows app. Use the prepared Python runtime when running the Python utilities. The portable build helper accepts **--app LiveTranslate**, **--base** pointing to the original verified 0.6.4 Windows Test ZIP, and **--output** pointing to a new ZIP. The original archive supplies the checked runtime, offline models, and third-party notices.
+From the cloned source directory, open **LiveTranslate/scripts/Build.cmd** to compile the Windows app. Use the prepared Python runtime when running the Python utilities. The portable build helper accepts **--app LiveTranslate**, **--base** pointing to the original verified 0.6.7 Windows Test ZIP, and **--output** pointing to a new ZIP. The original archive supplies the checked runtime, offline models, and third-party notices.
 
 The release includes these offline checks.
 
@@ -27,13 +27,13 @@ The release includes these offline checks.
 - **qa/live_model_screen.py** runs the screen watcher on generated Asian-language panels. **qa/qa_screen.py** measures word placement and English-only filtering across Asian and European examples. Set **LIVETRANSLATE_TEST_DATA** to the prepared app’s **data** folder and run these with its bundled Python. The broader test uses the additional tested OCR languages.
 - **installer/Test-Installer.ps1 -Python PATH** installs, upgrades, repairs, and uninstalls a generated package under a disposable directory. Its checks include model and settings retention, active model/setup locks, and user-owned shortcuts.
 - **publisher/test_github_publish.py** simulates release upload, cancellation and retry, changed assets, wrong accounts, and downgrade handling in memory.
-- **qa/upgrade_e2e.py** applies the 0.6.7 feed to two disposable copies of a 0.6.6 installation using a local folder and simulated private GitHub responses. Provide the kit's feed path, **--old-app** pointing to the extracted 0.6.6 app, and **--ocr-model** pointing to a checked Japanese OCR file if needed. The harness verifies the native file version, source hashes, retained settings and model, and the official signature.
+- **qa/upgrade_e2e.py** applies the 0.6.8 feed to two disposable 0.6.7 fixtures using a local folder and simulated private GitHub responses. Provide the kit's feed path, **--old-app** pointing to the built 0.6.7 app, **--old-portable** pointing to its original Windows Test ZIP, and **--ocr-model** pointing to a checked Japanese OCR file if needed. The harness verifies the native file version, source hashes, retained settings and model, and the official signature.
 
 ## Prepare another update
 
-1. Edit the app under **LiveTranslate**. Set both assembly version attributes in **ui/Program.cs**. Build and test the application and create a new signed feed for a stable three-part version.
+1. Edit the app under **LiveTranslate**. Set both assembly version attributes in **ui/Program.cs** and add the release entry to **ui/ReleaseHistory.cs**. If distribution scripts, configuration or guides change, regenerate the migration catalog with `python tools/build_layout_sources.py` before compiling. Build and test the application and create a signed feed for the new version.
 2. In the source checkout, run the bundled Python with `tools/publish_update.py --app LiveTranslate --version X.Y.Z --feed release`. Run **publisher/Sign-Release.ps1** with the existing release key. Keep the private key on the owner’s Windows profile and protect its recovery backup. The developer ZIP contains only the verifier and public key.
 3. Commit the matching sources, tag the exact release commit with **vX.Y.Z**, then run `git bundle create LiveTranslate-source.bundle refs/heads/main refs/tags/vX.Y.Z`. Keep earlier tags in a complete archival bundle by passing their refs as well. Supply the new signed feed and source bundle to the offline preview before publishing.
-4. For a downloadable upgrade ZIP for older prepared 0.6.x installations, run `tools/build_small_update.py release LiveTranslate-X.Y.Z-Existing-Install-Update.zip`. For a fresh per-user installer, run `installer/build_kit.py --portable PORTABLE.zip --output SetupKit.zip --version X.Y.Z`, followed by `installer/bundle_setup.py SetupKit.zip PORTABLE.zip Windows-Setup.zip`. Place the correctly named **LiveTranslate-X.Y.Z-Windows-Test.zip** inside the combined setup.
+4. For a downloadable upgrade ZIP for older prepared 0.6.x installations, run `tools/build_small_update.py release LiveTranslate-X.Y.Z-Existing-Install-Update.zip`. For a full per-user Windows installer, run `installer/desktop-setup/Build-DesktopSetup.ps1 -Portable PORTABLE.zip -Version 0.6.8 -Icon LiveTranslate/ui/LiveTranslate.ico -Output LiveTranslate-0.6.8-Setup.exe -Python PYTHON.exe`. Open the resulting setup EXE directly. The portable package and the installed application both use the organized application tree.
 
 Microsoft Defender runs on the newly prepared local update. The publisher also verifies asset digests and the official signature. No release, credentials, or test fixtures need to leave the machine for the offline preview or synthetic tests. Consult the included app guide for the licenses applicable to each optional model.

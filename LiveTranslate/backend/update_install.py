@@ -21,7 +21,7 @@ _JOURNAL = "transaction.json"
 _EXE = "LiveTranslate.exe"
 _HASH = re.compile(r"[a-f0-9]{64}\Z")
 _ID = re.compile(r"[a-f0-9]{32}\Z")
-_PATH = re.compile(r"(?:backend/[A-Za-z0-9_]{1,80}\.py|ui/[A-Za-z0-9_]{1,80}\.cs|README\.md|VALIDATION\.md|START-HERE\.txt|LiveTranslate\.exe)\Z", re.ASCII)
+_PATH = re.compile(r"(?:backend/[A-Za-z0-9_]{1,80}\.py|ui/[A-Za-z0-9_]{1,80}\.cs|(?:docs/)?(?:README\.md|VALIDATION\.md|START-HERE\.txt)|LiveTranslate\.exe)\Z", re.ASCII)
 _DEVICES = {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1,10)), *(f"lpt{i}" for i in range(1,10))}
 _MAX_TOTAL = 64 * 1024 * 1024
 
@@ -477,7 +477,7 @@ def main():
         if os.name == "nt" and not args.no_restart and (ready or args.action == "recover") and not (
                 args.action == "recover" and isinstance(exc,BlockingIOError)):
             state = args.root / _STATE
-            retry = "Run Start.cmd again to recover the interrupted update." if (state / _JOURNAL).exists() else "Run Start.cmd to reopen LiveTranslate."
+            retry = "Open LiveTranslate.exe again to recover the interrupted update." if (state / _JOURNAL).exists() else "Open LiveTranslate.exe to reopen the dashboard."
             _win_message(message + "\n\n" + retry)
         return 1
 

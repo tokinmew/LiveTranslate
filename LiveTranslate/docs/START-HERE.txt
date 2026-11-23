@@ -1,8 +1,9 @@
-LiveTranslate 0.6.7 for Windows 11 x64
+LiveTranslate 0.6.8 for Windows 11 x64
 
-If you downloaded Windows Setup, extract the complete ZIP and double-click
-Install LiveTranslate.cmd. If you downloaded Existing Install Update,
-extract it, close LiveTranslate and run Enable updates.cmd.
+For a new installation, open LiveTranslate-0.6.8-Setup.exe and choose Install.
+Open LiveTranslate from the Start menu. You can also open LiveTranslate.exe
+in the application folder. Guides and notices are in docs, maintenance
+commands are in scripts, and model configuration is in config.
 
 Under Translate text, choose Practice a reply for a separate pronunciation
 guide. The starter examples work offline. Custom translations use the optional
@@ -14,8 +15,8 @@ For updates, open Settings and Updates. The local feed works immediately.
 The optional official GitHub source requires a published private release
 and a GitHub CLI account that can read it.
 
-1. Right-click the ZIP and choose Extract All. Choose a writable local folder
-   with about 3 GB free. Inside LiveTranslate, double-click Start.cmd.
+1. If you use the portable ZIP, extract it to a writable local folder
+   with about 3 GB free. Inside LiveTranslate, double-click LiveTranslate.exe.
    First launch prepares and verifies the included runtime and models.
 2. Choose a source language. Asian languages appear first. Traditional
    and Simplified Chinese, Japanese and Korean include screen and text models.

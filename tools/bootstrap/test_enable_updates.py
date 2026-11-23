@@ -35,6 +35,24 @@ class BootstrapTests(unittest.TestCase):
         self.assertEqual(self.package, payload)
         self.assertEqual({path: self.contents for path in updater.HELPERS}, components)
 
+    def test_bootstrap_target_supports_both_layouts_and_requires_prepared_app(self):
+        for path in ("LiveTranslate.exe", "runtime/python.exe", "ui/Program.cs", "backend/worker.py"):
+            target = self.folder / path
+            target.parent.mkdir(exist_ok=True)
+            target.touch()
+        with self.assertRaisesRegex(ValueError, "setup files"):
+            updater.check_target(self.folder)
+        launcher = self.folder / "Start.cmd"
+        launcher.touch()
+        updater.check_target(self.folder)
+        folder = self.folder / "scripts"
+        folder.mkdir()
+        launcher.rename(folder / launcher.name)
+        updater.check_target(self.folder)
+        (self.folder / "runtime/python.exe").unlink()
+        with self.assertRaisesRegex(ValueError, "prepared folder"):
+            updater.check_target(self.folder)
+
     def test_same_length_changed_package_rejected(self):
         (self.folder / updater.PACKAGE).write_bytes(self.package[:-1] + b" ")
         with self.assertRaisesRegex(ValueError, "changed"):

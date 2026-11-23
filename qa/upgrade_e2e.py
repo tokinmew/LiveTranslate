@@ -1,11 +1,13 @@
-"""Apply the signed 0.6.7 release to a 0.6.6 Windows client using local fixtures."""
+"""Apply the signed 0.6.8 release using an original 0.6.7 client in disposable folders."""
 from contextlib import ExitStack
 from hashlib import sha256
 import argparse
 import io
 import json
+import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 from unittest.mock import patch
@@ -13,17 +15,34 @@ from urllib.error import HTTPError
 
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_OLD = HERE.parents[1] / "captions-v066/LiveTranslate"
+DEFAULT_OLD = HERE.parents[2] / "captions-v067/LiveTranslate"
 DEFAULT_NEW = HERE.parent / "LiveTranslate"
-OLD_VERSION = "0.6.6"
-NEW_VERSION = "0.6.7"
+OLD_VERSION = "0.6.7"
+NEW_VERSION = "0.6.8"
 
 
 def sha(data):
     return sha256(data).hexdigest()
 
 
-def check(feed, mode, old, new, ocr_model):
+def finish_layout(app):
+    """Call the actual startup migration, without creating a dashboard or starting a worker."""
+    powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    assembly = app / "LiveTranslate.exe"
+    command = """
+$ErrorActionPreference='Stop'
+$a=[Reflection.Assembly]::LoadFrom($env:LT_FIXTURE_EXE)
+$t=@($a.GetTypes() | Where-Object { $_.Name -eq 'LayoutMigration' })[0]
+$m=$t.GetMethod('Organize',[Reflection.BindingFlags]'Static,Public,NonPublic')
+$argsForMethod=[string[]]@([IO.Path]::GetDirectoryName($env:LT_FIXTURE_EXE))
+$result=$m.Invoke($null,$argsForMethod)
+if ($result -is [bool] -and !$result) { throw 'Layout migration did not complete' }
+"""
+    subprocess.run([str(powershell), "-NoProfile", "-NonInteractive", "-Command", command],
+                   cwd=app, env={**os.environ, "LT_FIXTURE_EXE":str(assembly)}, check=True, timeout=120)
+
+
+def check(feed, mode, old, new, ocr_model, portable):
     import app_updates
     import github_releases
     import release_signature
@@ -83,6 +102,16 @@ def check(feed, mode, old, new, ocr_model):
             shutil.copytree(old / folder, app / folder, ignore=shutil.ignore_patterns("__pycache__"))
         for name in ("LiveTranslate.exe", "Start.cmd"):
             shutil.copyfile(old / name, app / name)
+        from zipfile import ZipFile
+        with ZipFile(portable) as release:
+            for item in release.infolist():
+                relative = item.filename.removeprefix("LiveTranslate/")
+                if relative == "LiveTranslate.exe" or item.is_dir():
+                    continue
+                if "/" not in relative or relative == "quality/scan.ps1":
+                    dest = app / relative
+                    dest.parent.mkdir(exist_ok=True)
+                    dest.write_bytes(release.read(item))
         exe = app / "LiveTranslate.exe"
         assert app_updates._file_version(exe) == tuple(map(int, OLD_VERSION.split("."))) + (0,)
         baseline = sha(exe.read_bytes())
@@ -105,10 +134,17 @@ def check(feed, mode, old, new, ocr_model):
         for file in files:
             name = file["path"]
             assert sha((app / name).read_bytes()) == file["sha256"], name
-            assert (app / name).read_text("utf-8-sig") == (new / name).read_text("utf-8-sig"), name
+            tagged = new / "docs" / name if "/" not in name else new / name
+            assert (app / name).read_text("utf-8-sig") == tagged.read_text("utf-8-sig"), name
+        finish_layout(app)
+        finish_layout(app)
+        assert sorted(p.name for p in app.iterdir() if p.is_file()) == ["LiveTranslate.exe"]
+        assert (app/"scripts/Prepare-Offline.ps1").is_file() and (app/"config/model-sources.json").is_file()
+        assert (app/"docs/START-HERE.txt").read_text("utf-8-sig") == (new/"docs/START-HERE.txt").read_text("utf-8-sig")
+        assert prefs.read_text("utf8") == source and sha(model.read_bytes()) == model_hash
         return dict(route=mode, old=OLD_VERSION, installed=NEW_VERSION, source_files=len(files), package_sha256=sha(payload),
                     retained_ocr_sha256=model_hash, settings_preserved=True, defender_passed=True, native_compile=True,
-                    signature_verified=True, network_used=False)
+                    signature_verified=True, network_used=False, root_files=["LiveTranslate.exe"], second_start=True)
 
 
 if __name__ == "__main__":
@@ -116,10 +152,11 @@ if __name__ == "__main__":
     parser.add_argument("feed", type=Path, help="Folder containing signed latest.json and the numbered package")
     parser.add_argument("--old-app", type=Path, default=DEFAULT_OLD, help="Extracted previous application")
     parser.add_argument("--new-app", type=Path, default=DEFAULT_NEW, help="Current release source directory")
+    parser.add_argument("--old-portable", required=True, type=Path, help="Original 0.6.7 portable ZIP")
     parser.add_argument("--ocr-model", type=Path, help="Checked jpn.traineddata file to retain through the update")
     args = parser.parse_args()
     old, new = args.old_app.resolve(), args.new_app.resolve()
     sys.path.insert(0, str(old / "backend"))
     model = args.ocr_model or old / "data/tessdata/jpn.traineddata"
-    results = [check(args.feed.resolve(), route, old, new, model) for route in ("local-folder", "private-fixture")]
+    results = [check(args.feed.resolve(), route, old, new, model,args.old_portable) for route in ("local-folder", "private-fixture")]
     print(json.dumps(results, indent=2))

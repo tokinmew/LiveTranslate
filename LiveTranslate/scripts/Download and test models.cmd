@@ -9,7 +9,7 @@ set "interactive=1"
 set "scanArg="
 set "runtimeAttempted=0"
 set "result=0"
-pushd "%~dp0" >nul
+pushd "%~dp0.." >nul
 if errorlevel 1 exit /b 1
 :parse
 if "%~1"=="" goto check
@@ -33,7 +33,7 @@ set "status=model-test-results\last-run.txt"
 >"%status%" echo Checking model files. Reports from earlier runs may be stale.
 if errorlevel 1 goto unwritable
 echo Checking the approved files and scanning them with Microsoft Defender.
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0Get-CheckedModels.ps1" %scanArg%
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "%~dp0Get-CheckedModels.ps1" %scanArg%
 set "result=%errorlevel%"
 if not "%result%"=="0" goto blocked
 :checkRuntime
@@ -57,11 +57,11 @@ goto finish
 :needsRuntime
 if defined scanArg goto offlineRuntime
 if "%runtimeAttempted%"=="1" goto failedRuntime
-if not exist "Setup.ps1" goto failedRuntime
+if not exist "%~dp0Setup.ps1" goto failedRuntime
 set "runtimeAttempted=1"
 >"%status%" echo All model files passed. Installing and scanning the runtime.
 echo Installing the local translation engine and scanning its packages with Defender.
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0Setup.ps1"
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "%~dp0Setup.ps1"
 if errorlevel 1 goto failedRuntime
 goto checkRuntime
 :failedRuntime
@@ -72,7 +72,7 @@ goto finish
 :offlineRuntime
 set "result=3"
 >"%status%" echo The model files passed verification. No engine is ready. No inference tests ran. Previous inference reports are stale.
-echo The verified model files are ready. Run Setup.cmd to install the local engine, then rerun this tool with --offline.
+echo The verified model files are ready. Run scripts\Setup.cmd to install the local engine, then rerun this tool with --offline.
 goto finish
 :missingChecker
 set "result=3"

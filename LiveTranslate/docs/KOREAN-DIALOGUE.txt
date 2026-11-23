@@ -1,0 +1,28 @@
+Korean dialogue for Windows 11 x64
+
+1. Open LiveTranslate from Start or run LiveTranslate.exe in the extracted portable folder.
+2. For personal, noncommercial use, pause audio and screen watching and run
+   scripts/Install quality models.cmd. It downloads 1.26 GiB of speech and translation
+   files. Open the app again when it finishes.
+3. To use a compatible NVIDIA GPU for Korean dialogue, run
+   scripts/Install Korean dialogue.cmd from the same installation. Read the license shown in setup and
+   choose whether to accept it. The additional download is 3.53 GB.
+   Allow 4.17 GB of free space for this step, in addition to the base app
+   and quality models. The installer checks the files with Microsoft
+   Defender before activating them.
+4. In Settings, open Audio and screen. Under Korean dialogue, select NVIDIA
+   GPU and apply the settings. Use Auto or Korean as the source language.
+   For a call, game or video, select Computer audio and turn on Auto listen.
+   The status line shows when the extra model loads. A failure returns the
+   session to the standard recognizer. Select Standard to use the CPU.
+
+For the ten previously tested Korean turns on an RTX 4070 Ti, the first
+enhanced caption took about 13 seconds after speech ended. For the following
+nine turns the median was 5.1 seconds and the slowest was 18.3 seconds.
+During fast exchanges captions can arrive late and some turns can be
+skipped. The optional mode can keep up to 30 seconds of waiting audio per
+source in memory. A queued phrase that waits longer than 45 seconds expires.
+The app shows a message if captions lag. Turning off listening discards
+the queue. Other hardware and background apps can affect the delay.
+
+See dialogue/GPU-SOURCES.md for file verification and the vendor terms.

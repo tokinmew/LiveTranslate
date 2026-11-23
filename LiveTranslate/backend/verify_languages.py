@@ -1,6 +1,6 @@
 r"""Real-model acceptance checks; translation inference is never mocked.
 
-Run with the application's Python after Setup.cmd. Default: installed local
+Run with the application's Python after scripts/Setup.cmd. Default: installed local
 packs only, network blocked during checks. --download explicitly fetches any
 missing packs from the official index before the offline acceptance checks.
 

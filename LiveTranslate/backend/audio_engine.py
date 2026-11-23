@@ -354,7 +354,7 @@ class AudioEngine:
                     model.sensevoice = SenseVoice(secondary, threads)
                 except (OSError, ImportError, RuntimeError, ValueError) as exc:
                     self.emit({"type": "status", "message": "Using Whisper for speech recognition. "
-                               "Run Install quality models to repair the optional files. " + str(exc)})
+                               "Run scripts/Install quality models.cmd to repair the optional files. " + str(exc)})
         return self._cached_model
 
     @contextmanager

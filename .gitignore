@@ -8,3 +8,5 @@ __pycache__/
 *.p12
 LiveTranslate/data/
 LiveTranslate/runtime/
+# Disposable native setup test installations.
+/qa/s-*/

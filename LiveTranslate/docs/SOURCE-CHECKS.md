@@ -35,7 +35,7 @@ Reviewed November 18, 2026. The following checks cover the origins, independent 
 | One multilingual Whisper model and three companion files | SYSTRAN publishes the CTranslate2 conversion. The manifest pins the weights' SHA-256. Version 0.4 also pins the Git blob identities, byte counts and SHA-256 values of all three companion files after comparison with the tree at the same revision. |
 | Four Argos text models | Community mirrors on Hugging Face host the four complete language archives. The manifest pins each mirror revision, file length and published SHA-256. The byte-for-byte relationship to the original Argos publisher's archives is unconfirmed. A second mirror lists the same Simplified Chinese digest. |
 
-The exact file pages are in model-sources.json. Hugging Face documents running ClamAV on repository files under 2 GB at each commit. The file page for the speech model displayed its Safe badge. The archived text-file evidence is recorded individually in the manifest.
+The exact file pages are in config/model-sources.json. Hugging Face documents running ClamAV on repository files under 2 GB at each commit. The file page for the speech model displayed its Safe badge. The archived text-file evidence is recorded individually in the manifest.
 
 https://tesseract-ocr.github.io/tessdoc/Data-Files.html
 https://github.com/tesseract-ocr/tessdata_fast/releases/tag/4.1.0

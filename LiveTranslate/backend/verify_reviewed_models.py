@@ -44,16 +44,16 @@ def existing_pack_matches(folder, archive_path):
 
 
 def import_archives(root, data, results):
-    manifest = json.loads((root / "model-sources.json").read_text(encoding="utf-8-sig"))
+    manifest = json.loads((root / "config" / "model-sources.json").read_text(encoding="utf-8-sig"))
     report = json.loads((results / "model-file-checks.json").read_text(encoding="utf-8-sig"))
     if not isinstance(report, dict) or report.get("status") != "verified":
-        raise RuntimeError("Model file checks are incomplete. Run Download and test models.cmd first.")
+        raise RuntimeError("Model file checks are incomplete. Run scripts/Download and test models.cmd first.")
     rows = report.get("files", [])
     verified = {(r["kind"], r["name"]) for r in rows if r.get("status") == "verified"}
     expected = {(r["kind"], r["name"]) for r in manifest["files"]}
     if (len(manifest["files"]) != 13 or len(expected) != 13 or
             verified != expected or len(rows) != len(expected)):
-        raise RuntimeError("Model file checks are incomplete. Run Download and test models.cmd first.")
+        raise RuntimeError("Model file checks are incomplete. Run scripts/Download and test models.cmd first.")
     engine = TextEngine(data)
     for entry in manifest["files"]:
         kind = entry["kind"]

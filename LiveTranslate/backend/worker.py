@@ -596,7 +596,7 @@ class Worker:
                     except (OSError, ImportError, RuntimeError, ValueError) as exc:
                         self.speech_translation_checked = True
                         self.send({"type": "status", "message": "Using the standard translator. "
-                                   "Run Install quality models to repair the optional files. " + str(exc)})
+                                   "Run scripts/Install quality models.cmd to repair the optional files. " + str(exc)})
                     else:
                         # An external quality install may arrive after the app starts.
                         self.speech_translation_checked = self.speech_translator is not None
@@ -837,7 +837,7 @@ def main():
         from scipy import ndimage
         from scipy.signal import resample_poly
     except (ImportError, OSError) as exc:
-        send({"type": "error", "message": "The numerical runtime could not load. Run Setup.cmd to repair it. " + str(exc)})
+        send({"type": "error", "message": "The numerical runtime could not load. Run scripts/Setup.cmd to repair it. " + str(exc)})
         return 1
     worker = Worker(Path(__file__).resolve().parent.parent / "data", send)
     try:

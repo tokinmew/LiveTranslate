@@ -1,0 +1,21 @@
+{
+  "Build.cmd": "17eee84975192adedf2d52e40f1ee44ff6b1e4c690c41bed999d22b6decd9241",
+  "Download and test models.cmd": "ed77680b413c0b0337caac1bb35809e8b30f1cc4b18e56bc95b4139a5aaccfd3",
+  "Get-CheckedModels.ps1": "d4504d1c15ad235ea955d1556ee911758c581f48735d670c48daa2849e615df7",
+  "Install Korean dialogue.cmd": "39452ef5e11f78df69723cfd93329caf708744d0cc5534b4d522efd3c2a5dbe9",
+  "Install quality models.cmd": "ed94fa4a363f07229f1ab9a12c5b9c69ab2656ec6a9c8fab473989fd7b03cbda",
+  "KOREAN-DIALOGUE.txt": "e59a5475b7fdec33a5ef5daec9dcd0fd1996747e6d9293e45805013bd976040b",
+  "Prepare-Offline.ps1": "2587287113b322982c50c92d6fb5e39ed6e1a84f794c7d6a7d020eabf7b7bd04",
+  "QUALITY-SETUP.txt": "1511a1e4de783b2f1c126bbad63d1fc4dd9d516fbe70526a3c5e65e70afee0a9",
+  "README.md": "90515ac630d3ac53e33a5c25233a83c14397c14292e85e63de8c8233b48afcc2",
+  "SOURCE-CHECKS.md": "3e9557066ad2b3f3431ba7b2fb86a8d4d714edccc9b9aa8476b02f1cb3184aa1",
+  "START-HERE.txt": "2e563fe92620888830dc7f209d9b7844381e4ed57323ff70d7fc8328c2720c66",
+  "Setup.cmd": "e7967c29ae92ae743080207f26e4c756a2824406140cd175dfdadc7fbd1bde2e",
+  "Setup.ps1": "7620cb81eef857f9b184fd6ea1aaa9137522b83b03291113500e92e6512e9022",
+  "Start.cmd": "100e5b7de41237271dbf6456f48a2649b2e7c59f41fcd56cf556ed9b2ee14c9a",
+  "THIRD_PARTY.md": "1419b95b193eb4b32b2f6840decd1e804b66f897796f2f3a967b3ca48259a857",
+  "VALIDATION.md": "4e7ecb971a92316236cd3c1a3d2386b239ae094fb4161d357b7fbe53e96d8449",
+  "WORD-DATA-LICENSES.txt": "baa8c154d9107f636b51533ab59518c6f28fd031bdfbb45024841387eff72bb8",
+  "model-sources.json": "e710f9210ae6c113c72c640c2991b741530ee6fa68873a0d4221143840a7f76a",
+  "requirements.txt": "642caf772a4c096f5ab593628053330d7243126f5b2bb25e855e5b5dd174846d"
+}

@@ -357,7 +357,7 @@ class TextEngine:
                 import ctranslate2
                 import sentencepiece
             except (ImportError, OSError) as exc:
-                raise RuntimeError("The local translation runtime could not load. Run Setup.cmd to repair dependencies. " + str(exc)) from exc
+                raise RuntimeError("The local translation runtime could not load. Run scripts/Setup.cmd to repair dependencies. " + str(exc)) from exc
             folder, meta = packs[code]
             # Python opens Unicode Windows paths natively. Passing model bytes
             # also works when SentencePiece's C++ file loader expects ANSI.
@@ -375,7 +375,7 @@ class TextEngine:
                 # Modern py3langid replaces langid 1.1.6 and supports NumPy 2.
                 self._identifier = local_identifier()
             except (ImportError, OSError) as exc:
-                raise RuntimeError("Language detection could not load. Run Setup.cmd or select a source language manually. " + str(exc)) from exc
+                raise RuntimeError("Language detection could not load. Run scripts/Setup.cmd or select a source language manually. " + str(exc)) from exc
         return self._identifier
 
     def _detect(self, text):
@@ -462,7 +462,7 @@ class TextEngine:
                 from opencc import OpenCC
                 self._chinese_converters = OpenCC("s2t"), OpenCC("t2s")
             except (ImportError, OSError) as exc:
-                raise RuntimeError("Chinese script detection could not load. Select Chinese (Simplified) or Chinese (Traditional) manually, or run Setup.cmd. " + str(exc)) from exc
+                raise RuntimeError("Chinese script detection could not load. Select Chinese (Simplified) or Chinese (Traditional) manually, or run scripts/Setup.cmd. " + str(exc)) from exc
         return self._chinese_converters[0 if target == "zt" else 1].convert(text)
 
     def _chinese_script(self, text):

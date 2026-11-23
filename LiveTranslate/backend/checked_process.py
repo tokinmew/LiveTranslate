@@ -36,21 +36,22 @@ def _progress_line(value: str) -> str:
 
 def _validated_script(app_root: Path) -> tuple[Path, Path]:
     root = Path(os.path.abspath(os.fspath(app_root)))
+    scripts = root / "scripts"
     # Inspect the lexical path before resolve(), so an ancestor junction cannot
     # silently redirect the supposedly local, reviewed script.
-    for entry in reversed((root, *root.parents)):
+    for entry in reversed((scripts, *scripts.parents)):
         info = entry.lstat()
         if entry.is_symlink() or getattr(info, "st_file_attributes", 0) & _REPARSE:
             raise RuntimeError("Checked model setup refuses a linked application folder.")
         if not stat.S_ISDIR(info.st_mode):
             raise RuntimeError("The checked model application folder is not a directory.")
-    script = root / "Get-CheckedModels.ps1"
+    script = scripts / "Get-CheckedModels.ps1"
     info = script.lstat()
     if script.is_symlink() or getattr(info, "st_file_attributes", 0) & _REPARSE or not stat.S_ISREG(info.st_mode):
         raise RuntimeError("Get-CheckedModels.ps1 must be a normal local file.")
     resolved_root = root.resolve(strict=True)
     resolved_script = script.resolve(strict=True)
-    if resolved_script.parent != resolved_root:
+    if resolved_script.parent != resolved_root / "scripts":
         raise RuntimeError("The checked model script must stay inside the application folder.")
     return resolved_root, resolved_script
 

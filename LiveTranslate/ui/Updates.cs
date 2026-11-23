@@ -197,6 +197,13 @@ namespace LiveTranslate
             actions.Controls.Add(checkUpdates);
             actions.Controls.Add(installUpdate);
             actions.Controls.Add(cancelUpdate);
+            var history = UpdateButton("Changelog");
+            history.Name = "Changelog";
+            history.AccessibleName = "View changelog";
+            history.Click += delegate {
+                using (var window = new ReleaseHistoryWindow(Font)) window.ShowDialog(settingsForm);
+            };
+            actions.Controls.Add(history);
             layout.Controls.Add(actions, 0, 6);
             updateSource.TextChanged += delegate
             {

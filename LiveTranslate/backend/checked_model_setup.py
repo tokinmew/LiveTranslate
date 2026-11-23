@@ -1,7 +1,7 @@
 """GUI bridge to the reviewed downloader and its offline archive importer.
 
 This module never chooses a download URL. Only the packaged, checked
-Get-CheckedModels.ps1 and model-sources.json can supply the model files.
+scripts/Get-CheckedModels.ps1 and config/model-sources.json can supply the model files.
 """
 from __future__ import annotations
 
@@ -129,8 +129,8 @@ class CheckedModelSetup:
         if self.cancel_event.is_set():
             raise RuntimeError("Model setup was cancelled.")
         _plain_directory(root, self.data_dir)
-        script = _plain_file(root, "Get-CheckedModels.ps1")
-        manifest_path = _plain_file(root, "model-sources.json")
+        _plain_file(root, "scripts/Get-CheckedModels.ps1")
+        manifest_path = _plain_file(root, "config/model-sources.json")
         _plain_file(root, "backend/verify_reviewed_models.py")
         _plain_file(root, "backend/check_models.py")
         manifest = _read_json(manifest_path)

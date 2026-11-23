@@ -3,9 +3,13 @@ $ErrorActionPreference = 'Stop'
 $releaseVersion = [version]'__VERSION__'
 $packagePin = '__ARCHIVE_SHA256__'
 $listPin = '__MANIFEST_SHA256__'
+$launcherPin = '__LAUNCHER_SHA256__'
 $setupFile = $PSCommandPath
 $listFile = Join-Path $PSScriptRoot 'files.json'
 $brand = 'LiveTranslate Windows per-user install v1'
+$legacyRoot = @{
+# __LEGACY_ROOT_HASHES__
+}
 
 function Hash-Stream($stream) {
     $sha = [Security.Cryptography.SHA256]::Create()
@@ -70,8 +74,8 @@ function Stage-Portable([string]$selected,[string]$stage,$records) {
             } finally { $zip.Dispose() }
         } finally { $file.Dispose() }
     } else {
-        if ([IO.File]::Exists($selected) -and [IO.Path]::GetFileName($selected) -ieq 'Start.cmd') { $selected = [IO.Path]::GetDirectoryName($selected) }
-        if (![IO.Directory]::Exists($selected)) { throw 'Select the full Windows ZIP or its extracted Start.cmd.' }
+        if ([IO.File]::Exists($selected) -and [IO.Path]::GetFileName($selected) -iin @('Start.cmd','LiveTranslate.exe')) { $selected = [IO.Path]::GetDirectoryName($selected) }
+        if (![IO.Directory]::Exists($selected)) { throw 'Select the full Windows ZIP or its extracted LiveTranslate.exe.' }
         foreach ($record in $records.Values) {
             $path = Under $selected $record[0]
             Plain-Path $path
@@ -103,7 +107,7 @@ function Check-Idle([string]$appDir) {
     foreach ($name in @('.livetranslate-update/transaction.json')) {
         if ([IO.File]::Exists((Under $appDir $name))) { throw 'Open LiveTranslate to finish its pending update, then close it and retry.' }
     }
-    foreach ($name in @('.livetranslate-update/run.lock','.livetranslate-update/install.lock','setup.lock',
+    foreach ($name in @('.livetranslate-update/run.lock','.livetranslate-update/install.lock','setup.lock','setup-cache/setup.lock',
                         'model-test-results/offline-setup.lock','model-test-results/model-fetch.lock',
                         'data/.model-test.lock','model-staging/quality/setup.lock')) {
         $lock = Under $appDir $name
@@ -120,6 +124,7 @@ function Check-Idle([string]$appDir) {
 }
 
 function Setup-Links([string]$menu,[string]$appDir,[bool]$remove,[bool]$checkOnly=$false) {
+    if ($launcherPin) { Set-DesktopLinks $menu $appDir $remove $checkOnly; return }
     Plain-Path $menu
     if (![IO.Directory]::Exists($menu)) {
         if ($remove -or $checkOnly) { return }
@@ -131,7 +136,7 @@ function Setup-Links([string]$menu,[string]$appDir,[bool]$remove,[bool]$checkOnl
         foreach ($title in @('LiveTranslate','Uninstall LiveTranslate')) {
             $linkFile = Under $menu ($title+'.lnk')
             Plain-Path $linkFile
-            if ($title -eq 'LiveTranslate') { $target = Under $appDir 'Start.cmd'; $arguments = '' }
+            if ($title -eq 'LiveTranslate') { $target = Under $appDir 'LiveTranslate.exe'; $arguments = '' }
             else { $target = $ps; $arguments = '-NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File "'+(Under $appDir '.lt-setup/Setup.ps1')+'" -Uninstall' }
             if (($remove -or $checkOnly) -and ![IO.File]::Exists($linkFile)) { continue }
             $link = $shell.CreateShortcut($linkFile)
@@ -158,13 +163,16 @@ function Setup-Links([string]$menu,[string]$appDir,[bool]$remove,[bool]$checkOnl
 }
 
 function Test-InstalledRelease([string]$appDir,$records) {
+    foreach ($name in $legacyRoot.Keys) { if ([IO.File]::Exists((Under $appDir $name))) { return $false } }
     foreach ($record in $records.Values) {
         $path = Under $appDir $record[0]
         Plain-Path $path
         if (![IO.File]::Exists($path) -or ([IO.FileInfo]$path).Length -ne [long]$record[1] -or
             (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine $record[2]) { return $false }
     }
-    foreach ($pair in @(@('.lt-setup/files.json',$listPin),@('.lt-setup/Setup.ps1',(Get-FileHash -LiteralPath $setupFile -Algorithm SHA256).Hash))) {
+    $supportFiles = @(@('.lt-setup/files.json',$listPin),@('.lt-setup/Setup.ps1',(Get-FileHash -LiteralPath $setupFile -Algorithm SHA256).Hash))
+    if ($launcherPin) { $supportFiles += ,@('.lt-setup/LiveTranslate.Launcher.exe',$launcherPin) }
+    foreach ($pair in $supportFiles) {
         $path = Under $appDir $pair[0]
         Plain-Path $path
         if (![IO.File]::Exists($path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ine $pair[1]) { return $false }
@@ -189,6 +197,32 @@ function Open-Managed([string]$base,[bool]$freshAllowed) {
     [IO.File]::Open($lock,'OpenOrCreate','ReadWrite','None')
 }
 
+function Move-StagedDirectory([string]$source,[string]$destination) {
+    for ($attempt = 0; ; $attempt++) {
+        try { [IO.Directory]::Move($source,$destination); return }
+        catch {
+            $code = $_.Exception.GetBaseException().HResult -band 65535
+            if ($attempt -ge 8 -or $code -notin @(5,32,33) -or ![IO.Directory]::Exists($source) -or [IO.Directory]::Exists($destination)) { throw }
+            Start-Sleep -Milliseconds (100 * ($attempt + 1))
+        }
+    }
+}
+
+# __DESKTOP_INTEGRATION__
+
+function Save-LayoutConflict([string]$file,[string]$stage,[string]$relative) {
+    $backup = Under $stage ('migration-backup/' + $releaseVersion.ToString(3) + '/' + $relative)
+    [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($backup))
+    $path = $backup
+    $number = 0
+    while ([IO.File]::Exists($path) -or [IO.Directory]::Exists($path)) {
+        if ([IO.File]::Exists($path) -and (Get-FileHash -LiteralPath $path).Hash -eq (Get-FileHash -LiteralPath $file).Hash) { return }
+        $number++
+        $path = $backup + '.' + $number
+    }
+    [IO.File]::Copy($file,$path)
+}
+
 function Install-Portable([string]$source,[string]$base,[string]$menu) {
     $records = Read-List
     $guard = Open-Managed $base $true
@@ -196,7 +230,7 @@ function Install-Portable([string]$source,[string]$base,[string]$menu) {
         $appDir = Under $base 'app'; $stage = Under $base 'stage'; $previous = Under $base 'previous'
         $actual = $null
         foreach ($p in @($appDir,$stage,$previous)) { Plain-Path $p }
-        if ([IO.Directory]::Exists($previous) -and ![IO.Directory]::Exists($appDir)) { [IO.Directory]::Move($previous,$appDir) }
+        if ([IO.Directory]::Exists($previous) -and ![IO.Directory]::Exists($appDir)) { Move-StagedDirectory $previous $appDir }
         Setup-Links $menu $appDir $false $true
         if ([IO.Directory]::Exists($appDir)) {
             Check-Idle $appDir
@@ -222,23 +256,48 @@ function Install-Portable([string]$source,[string]$base,[string]$menu) {
                 $oldNames = @{}
                 # The current kit already identifies every owned file for a
                 # same-version repair, even if its installed file list broke.
-                if ($actual -ne $releaseVersion -and [IO.File]::Exists($oldList)) { foreach ($row in ([IO.File]::ReadAllText($oldList) | ConvertFrom-Json)) { $oldNames[[string]$row[0]] = $true } }
+                if ([IO.File]::Exists($oldList)) {
+                    try {
+                        foreach ($row in ([IO.File]::ReadAllText($oldList) | ConvertFrom-Json)) { $oldNames[[string]$row[0]] = $true }
+                    } catch { $oldNames = @{} }
+                }
+                $preserve = @{}
                 foreach ($file in (Walk-Files $appDir)) {
                     $name = $file.Substring($appDir.Length+1).Replace('\','/')
-                    if ($name.StartsWith('.lt-setup/') -or $name.StartsWith('.livetranslate-update/') -or $records.ContainsKey($name) -or $oldNames.ContainsKey($name)) { continue }
+                    if ($legacyRoot.ContainsKey($name)) {
+                        if ((Get-FileHash -LiteralPath $file).Hash -ine $legacyRoot[$name]) { $preserve['previous-root/' + $name] = $file }
+                        continue
+                    }
+                    if ($records.ContainsKey($name)) {
+                        $leaf = [IO.Path]::GetFileName($name)
+                        if ($oldNames.ContainsKey('Start.cmd') -and !$oldNames.ContainsKey($name) -and
+                                $legacyRoot.ContainsKey($leaf) -and (Get-FileHash -LiteralPath $file).Hash -ine $records[$name][2]) {
+                            $preserve['previous-destination/' + $name] = $file
+                        }
+                        continue
+                    }
+                    if ($name.StartsWith('.lt-setup/') -or ($actual -ne $releaseVersion -and $oldNames.ContainsKey($name))) { continue }
+                    if ($name.StartsWith('.livetranslate-update/')) { continue }
+                    if ($name -eq 'setup.lock' -and !([IO.FileInfo]$file).Length) { continue }
                     $copy = Under $stage $name
                     [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($copy))
                     [IO.File]::Copy($file,$copy)
                 }
+                foreach ($name in $preserve.Keys) { Save-LayoutConflict $preserve[$name] $stage $name }
                 Check-Idle $appDir
             }
             $support = Under $stage '.lt-setup'
             [void][IO.Directory]::CreateDirectory($support)
             [IO.File]::Copy($setupFile,(Under $support 'Setup.ps1'))
             [IO.File]::Copy($listFile,(Under $support 'files.json'))
-            if ([IO.Directory]::Exists($appDir)) { [IO.Directory]::Move($appDir,$previous) }
-            try { [IO.Directory]::Move($stage,$appDir) }
-            catch { if ([IO.Directory]::Exists($previous)) { [IO.Directory]::Move($previous,$appDir) }; throw }
+            if ($launcherPin) {
+                $launcher = Join-Path $PSScriptRoot 'LiveTranslate.Launcher.exe'
+                if ((Get-FileHash -LiteralPath $launcher).Hash -ine $launcherPin) { throw 'The desktop launcher changed.' }
+                [IO.File]::Copy($launcher,(Under $support 'LiveTranslate.Launcher.exe'))
+            }
+            if ([IO.Directory]::Exists($appDir)) { Move-StagedDirectory $appDir $previous }
+            try { Move-StagedDirectory $stage $appDir }
+            catch { if ([IO.Directory]::Exists($previous)) { Move-StagedDirectory $previous $appDir }; throw }
         } finally { Remove-ManagedTree $base 'stage' }
         Setup-Links $menu $appDir $false
         Remove-ManagedTree $base 'previous'
@@ -263,6 +322,16 @@ function Uninstall-Portable([string]$base,[string]$menu,[bool]$erase) {
             }
         }
         Setup-Links $menu $appDir $true
+        if (!$erase) {
+            $support = Under $appDir '.lt-setup'
+            Plain-Path $support
+            foreach ($name in @('files.json','LiveTranslate.Launcher.exe','Setup.ps1')) {
+                $file = Under $support $name
+                Plain-Path $file
+                if ([IO.File]::Exists($file)) { [IO.File]::Delete($file) }
+            }
+            if ([IO.Directory]::Exists($support) -and ![IO.Directory]::GetFileSystemEntries($support).Length) { [IO.Directory]::Delete($support) }
+        }
     } finally { $guard.Dispose() }
 }
 
@@ -282,8 +351,8 @@ try {
         $file = Join-Path $PSScriptRoot ("LiveTranslate-" + $releaseVersion.ToString(3) + "-Windows-Test.zip")
         if (![IO.File]::Exists($file)) {
             $picker = New-Object Windows.Forms.OpenFileDialog
-            $picker.Title = 'Choose the full LiveTranslate Windows ZIP or its extracted Start.cmd'
-            $picker.Filter = 'LiveTranslate Windows ZIP or Start.cmd|*.zip;Start.cmd'
+            $picker.Title = 'Choose the full LiveTranslate Windows ZIP or its extracted LiveTranslate.exe'
+            $picker.Filter = 'LiveTranslate portable ZIP or application|*.zip;LiveTranslate.exe'
             try { if ($picker.ShowDialog() -ne 'OK') { return }; $file = $picker.FileName } finally { $picker.Dispose() }
         }
         $message = Install-Portable $file $base $menu

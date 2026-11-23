@@ -1,4 +1,6 @@
-# LiveTranslate 0.6.7 for Windows 11 x64
+# LiveTranslate 0.6.8 for Windows 11 x64
+
+Open **LiveTranslate** from the Windows Start menu or double-click **LiveTranslate.exe** in the application folder. The installed folder groups maintenance commands in **scripts**, model and dependency configuration in **config**, and guides and notices in **docs**. Models, runtime files and language packs continue to use their own folders.
 
 ## Practice a reply
 
@@ -28,7 +30,7 @@ Open **VR captions** to view translations in a separate window. Long captions ad
 
 Open **Settings → Spoken English** to hear accepted voice translations through a locally installed English voice. Spoken output starts off. Choose your headset or Windows output there and keep **Auto listen** enabled for the input you want translated. Rate and volume affect the generated voice. English-only input stays filtered. Background dialogue, music, and microphone pickup of speaker playback can reduce recognition accuracy.
 
-Use **Settings → Updates** to keep following the current local feed or choose **GitHub Releases**. The official project address is https://github.com/tokinmew/LiveTranslate. Private releases become available after the owner creates the dedicated private repository and publishes the signed assets. Private downloads require the free GitHub CLI signed into an account with access. The local feed also supports offline updates. The app displays its installed version on the Updates page.
+Use **Settings → Updates** to keep following the current local feed or choose **GitHub Releases**. The official project address is https://github.com/tokinmew/LiveTranslate. Private updates become available when the owner publishes a release with the signed assets. Private downloads require the free GitHub CLI signed into an account with access. The local feed also supports offline updates. The app displays its installed version on the Updates page.
 
 The official GitHub stable feed is pinned to this project's RSA-3072 public key. The client verifies the publisher signature and downloaded source hashes before compiling, scanning and installing a newer version. A custom local or HTTPS feed has its own trust requirements. Choose one only if you trust its publisher to supply application code.
 
@@ -36,7 +38,7 @@ Translate your screen, pasted text, microphone or computer audio into English. R
 
 ## First launch
 
-Extract the full ZIP into a writable folder with around 3 GB free. Inside **LiveTranslate**, open **Start.cmd**. Keep the first setup window open while it checks and prepares the portable runtime, four starter text packs, five OCR packs and multilingual Whisper Base. Later launches reuse these files.
+Open the Windows setup application and select **Install**. Open **LiveTranslate** when setup finishes. If you are using the portable ZIP, extract the complete folder to a writable location and open **LiveTranslate.exe**. Allow about 3 GB of free space. First launch prepares and checks the runtime, four starter text packs, five OCR packs and multilingual Whisper Base. Later launches reuse these files.
 
 | Input | Using it |
 | --- | --- |
@@ -54,7 +56,7 @@ The four starter profiles include written translation and OCR. Whisper Base has 
 
 Open **Settings**, go to the language files and choose **Get more text languages**. The optional **601 MiB** NLLB pack provides **201 non-English written language and script entries** in total, including the starter languages. It is licensed for noncommercial use. The installer verifies four files by byte count and SHA-256, scans them with Microsoft Defender and can resume an interrupted download. Restart the dashboard when setup finishes.
 
-For additional speech models, **Install quality models.cmd** includes a larger Whisper model, SenseVoice and the same NLLB text pack. If you already installed the quality models, the dashboard can use the existing NLLB files. See **QUALITY-SETUP.txt** and, for the optional Korean GPU setup, **KOREAN-DIALOGUE.txt**.
+For additional speech models, **scripts/Install quality models.cmd** includes a larger Whisper model, SenseVoice and the same NLLB text pack. If you already installed the quality models, the dashboard can use the existing NLLB files. See **QUALITY-SETUP.txt** and, for the optional Korean GPU setup, **KOREAN-DIALOGUE.txt**.
 
 Screen reading needs both a text translation model and a compatible OCR reader. The picker reflects local availability. An English Windows reader can handle certain adequately identified Latin-script lines with lower accent accuracy. Native-language OCR improves recognition. A tight capture area helps with columns and dense subtitles.
 
@@ -62,6 +64,6 @@ Screen reading needs both a text translation model and a compatible OCR reader. 
 
 In a prepared copy with the updater, open **Settings**, **Updates**, then **Check for updates**. Choose **Download and restart** to install. The updater verifies the release hashes, compiles the dashboard and checks the staged update with Microsoft Defender. It preserves existing models, runtime and settings.
 
-Use your private release feed on this PC or enter your own trusted HTTPS manifest URL. For an older copy without the Updates page, extract the small **Existing-Install-Update** ZIP and open **Enable updates.cmd**. Select the folder that contains your original **Start.cmd** and **LiveTranslate.exe**.
+Use your private release feed on this PC or enter your own trusted HTTPS manifest URL. For an older copy without the Updates page, extract the small **Existing-Install-Update** ZIP and open **Enable updates.cmd**. Select your existing LiveTranslate application folder.
 
-The transcript can show the original words alongside the translation. **VALIDATION.md** contains release test results and limitations. **SOURCE-CHECKS.md**, **THIRD_PARTY.md** and **quality/MODEL-NOTICES.txt** document the supporting files. **Build.cmd** rebuilds the Windows dashboard and OCR helper from source.
+The transcript can show the original words alongside the translation. **VALIDATION.md** contains release test results and limitations. **SOURCE-CHECKS.md**, **THIRD_PARTY.md** and **quality/MODEL-NOTICES.txt** document the supporting files. **scripts/Build.cmd** rebuilds the Windows dashboard and OCR helper from source.

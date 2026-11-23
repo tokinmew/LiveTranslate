@@ -1,0 +1,27 @@
+Live Translate for Windows 11 x64
+
+With a portable release, extract the complete ZIP and double-click
+LiveTranslate.exe. With an installed release, open LiveTranslate from Start. First launch prepares and checks the included offline runtime and
+language models. Use a writable local drive with 5 GB of free space if you
+intend to try the additional speech models.
+
+For a personal, noncommercial test of the additional speech models, double-
+click scripts/Install quality models.cmd. This downloads 1.26 GiB once. It shows
+progress, checks ten files and scans them with Microsoft Defender. When it
+finishes, restart the dashboard. The installer works on a CPU.
+
+If a download stops, open the installer again. It continues partial
+downloads and repairs damaged model files. You can use the included
+offline models while downloading. A repaired model's previous directory is
+preserved at the location reported by setup.
+
+Updating an existing installation
+
+Close LiveTranslate and finish or close model setup before running the
+Windows installer. To update a prepared copy from a configured feed, use
+Settings and Updates in the dashboard. Keep your optional packs in the
+installation you use.
+
+The NLLB-200 distilled 600M translation model is licensed for noncommercial
+use. The model authors and the terms of all three optional packs are listed
+in quality/MODEL-NOTICES.txt.

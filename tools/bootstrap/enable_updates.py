@@ -10,8 +10,8 @@ import sys
 import tempfile
 
 
-VERSION = "0.6.3"
-PACKAGE = "LiveTranslate-0.6.3.json"
+VERSION = "__LIVETRANSLATE_RELEASE_VERSION__"
+PACKAGE = f"LiveTranslate-{VERSION}.json"
 PACKAGE_SHA256 = "__LIVETRANSLATE_BUNDLED_PACKAGE_SHA256__"
 MAX_PACKAGE = 8 * 1024 * 1024
 HELPERS = {"backend/app_updates.py", "backend/update_install.py"}
@@ -42,7 +42,7 @@ def seed_inputs(directory):
         raise ValueError("The update package is incomplete or has changed. Extract the complete update ZIP.")
     release = json.loads(payload.decode("utf-8-sig"))
     if not isinstance(release, dict) or release.get("version") != VERSION or not isinstance(release.get("files"), list):
-        raise ValueError("The update package is not a LiveTranslate 0.6.3 release.")
+        raise ValueError(f"The update package is not a LiveTranslate {VERSION} release.")
     helpers = {}
     for entry in release["files"]:
         if not isinstance(entry, dict) or entry.get("path") not in HELPERS:
@@ -85,8 +85,9 @@ def installed_version(exe):
         raise ValueError("The installed dashboard version record is invalid.")
     major, minor = divmod(fields[2], 65536)
     build, patch = divmod(fields[3], 65536)
-    if (major, minor, build, patch) not in {(0, 6, n, 0) for n in (1, 2, 3)}:
-        raise ValueError("Select an existing LiveTranslate 0.6.1 or 0.6.2 installation.")
+    max_patch = int(VERSION.rsplit(".", 1)[1])
+    if (major, minor, patch) != (0, 6, 0) or not 1 <= build <= max_patch:
+        raise ValueError(f"Select an existing LiveTranslate 0.6.1 through {VERSION} installation.")
     return f"{major}.{minor}.{build}"
 
 
@@ -131,14 +132,20 @@ def transaction(python, helper, root, operation, stage=None):
         raise RuntimeError("The " + operation + " step failed. Close LiveTranslate and try again; see the message above.")
 
 
+def check_target(root):
+    for member in ("LiveTranslate.exe", "runtime/python.exe", "ui/Program.cs", "backend/worker.py"):
+        if not (root / member).is_file():
+            raise ValueError("Select the existing prepared folder containing LiveTranslate.exe.")
+    if not any((root / member).is_file() for member in ("scripts/Start.cmd", "Start.cmd")):
+        raise ValueError("The LiveTranslate setup files are missing. Repair this installation before updating.")
+
+
 def main():
     if os.name != "nt" or len(sys.argv) != 2:
         raise ValueError("On Windows, extract the complete update and run Enable updates.cmd.")
     root = Path(sys.argv[1]).resolve(strict=True)
     exe, python = root / "LiveTranslate.exe", root / "runtime/python.exe"
-    for path in (exe, python, root / "Start.cmd", root / "ui/Program.cs", root / "backend/worker.py"):
-        if not path.is_file():
-            raise ValueError("Select the existing prepared LiveTranslate app folder.")
+    check_target(root)
     if not os.path.samefile(sys.executable, python):
         raise ValueError("Run Enable updates.cmd to use this installation's bundled runtime.")
     installed_version(exe)

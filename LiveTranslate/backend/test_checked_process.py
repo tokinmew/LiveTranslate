@@ -43,7 +43,7 @@ class CheckedProcessTests(unittest.TestCase):
             root = Path(directory)
             with self.assertRaises(FileNotFoundError):
                 checked_process._validated_script(root)
-            (root / "Get-CheckedModels.ps1").mkdir()
+            (root / "scripts" / "Get-CheckedModels.ps1").mkdir(parents=True)
             with self.assertRaisesRegex(RuntimeError, "normal local file"):
                 checked_process._validated_script(root)
 
@@ -51,7 +51,8 @@ class CheckedProcessTests(unittest.TestCase):
     def test_contained_local_stub_success_and_nonzero(self):
         with tempfile.TemporaryDirectory(prefix="checked helper with spaces ") as directory:
             root = Path(directory)
-            script = root / "Get-CheckedModels.ps1"
+            (root / "scripts").mkdir()
+            script = root / "scripts" / "Get-CheckedModels.ps1"
             script.write_text("Write-Output 'STUB pipeline ran'\nexit 0\n", encoding="utf-8")
             messages = []
             checked_process.run_checked_powershell(root, messages.append, threading.Event())
@@ -64,7 +65,8 @@ class CheckedProcessTests(unittest.TestCase):
     def test_cancels_a_contained_sleeping_stub(self):
         with tempfile.TemporaryDirectory(prefix="checked helper cancel ") as directory:
             root = Path(directory)
-            (root / "Get-CheckedModels.ps1").write_text("Write-Output 'STUB ready'\nStart-Sleep -Seconds 60\n", encoding="utf-8")
+            (root / "scripts").mkdir()
+            (root / "scripts" / "Get-CheckedModels.ps1").write_text("Write-Output 'STUB ready'\nStart-Sleep -Seconds 60\n", encoding="utf-8")
             cancel = threading.Event()
 
             def progress(value):

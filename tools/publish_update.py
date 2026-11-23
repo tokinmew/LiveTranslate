@@ -63,7 +63,11 @@ def publish(app, release, directory):
     v = version(release)
     app = app.resolve(strict=True)
     code = sorted([*app.glob('backend/*.py'), *app.glob('ui/*.cs')])
-    code += [app / p for p in ('README.md', 'START-HERE.txt', 'VALIDATION.md')]
+    # Older installed clients accept these three logical names on the wire.
+    # Keep their on-disk location independent of that release protocol.
+    documents = ('README.md', 'START-HERE.txt', 'VALIDATION.md')
+    docs_root = app / 'docs' if v >= (0, 6, 8) else app
+    code += [docs_root / name for name in documents]
     if not 1 <= len(code) <= 160:
         raise ValueError('Unexpected number of source files.')
     for required in ('ui/Program.cs','ui/Updates.cs','ui/UpdateStartup.cs','backend/app_updates.py',
@@ -84,7 +88,8 @@ def publish(app, release, directory):
             raise ValueError('Invalid source: ' + str(path))
         if path.suffix == '.py':
             compile(value, str(path), 'exec', dont_inherit=True)
-        records.append(dict(path=path.relative_to(app).as_posix(), text=value, sha256=digest(data)))
+        logical = path.name if path.parent == docs_root and path.name in documents else path.relative_to(app).as_posix()
+        records.append(dict(path=logical, text=value, sha256=digest(data)))
     payload = encode(dict(version=release, files=records))
     if len(payload) > 8*1024*1024:
         raise ValueError('The source update exceeds the app limit.')

@@ -9,7 +9,7 @@ import sys
 def install(root, offline=False):
     folder = root / "quality"
     expected = {"install.py": "b0188fe186f778666bc4333c180a88fe471daa809227cd1c66a62c4d96180f6f",
-                "scan.ps1": "e770132c71e338a54167ff9a34a06f9261080010eee0af04ed767aa1e0bbccf3"}
+                "scan.ps1": "91e74a878f18d40334c9026a58492abdc3e690d72699bef7a7ca475412c04bd9"}
     for name, digest in expected.items():
         path = folder / name
         if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
