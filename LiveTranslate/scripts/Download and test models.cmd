@@ -20,11 +20,11 @@ set "result=2"
 goto finish
 :useOffline
 set "scanArg=-Offline"
-shift
+shift /1
 goto parse
 :noPause
 set "interactive=0"
-shift
+shift /1
 goto parse
 :check
 if not exist "model-test-results\" mkdir "model-test-results"
