@@ -6,7 +6,85 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, patch
 
-from screen_engine import ScreenCaptureUnavailable, ScreenEngine, _tesseract_data_path, page_segmentation_mode
+from screen_engine import (ScreenCaptureUnavailable, ScreenEngine, _tesseract_data_path,
+                           confirm_desktop_labels, page_segmentation_mode)
+
+
+class DesktopLabelConfirmationTests(unittest.TestCase):
+    def frame(self):
+        from PIL import Image
+        image = Image.new("L", (300, 140), 255)
+        image.info["desktop_map"] = (-100, -20, .5, .5)
+        return image
+
+    def test_crop_evidence_requires_exact_source_and_confident_reading(self):
+        source = [("門", [(0, 1, (-70, 0, -50, 20))])]
+        read = MagicMock(return_value=("門", "5\t1\t1\t1\t1\t1\t10\t10\t30\t30\t96\t門"))
+        anchors = confirm_desktop_labels(self.frame(), source, "chi_sim+jpn", read)
+        self.assertEqual(1, len(anchors))
+        self.assertEqual(("門", (-70, 0, -50, 20)), (anchors[0].text, anchors[0].box))
+        self.assertEqual(1, read.call_count)
+        self.assertEqual(("chi_sim+jpn", 7), read.call_args.args[1:3])
+        self.assertLessEqual(read.call_args.args[3], .6)
+        for response in (("問", read.return_value[1]), ("門", read.return_value[1].replace("96", "70")), None):
+            with self.subTest(response=response):
+                self.assertEqual([], confirm_desktop_labels(self.frame(), source, "chi_sim", lambda *args: response))
+
+    def test_known_icon_shape_never_uses_confidence_as_independent_proof(self):
+        read = MagicMock()
+        self.assertEqual([], confirm_desktop_labels(self.frame(), [("十", [(0, 1, (-70, 0, -50, 20))])], "chi_sim", read))
+        read.assert_not_called()
+
+    def test_many_small_candidates_have_a_fixed_read_limit(self):
+        source = [("門", [(0, 1, (-90 + i*5, 0, -85 + i*5, 10))]) for i in range(20)]
+        read = MagicMock(return_value=None)
+        confirm_desktop_labels(self.frame(), source, "chi_sim", read)
+        self.assertEqual(6, read.call_count)
+
+    def test_missing_coordinate_map_cannot_create_source_proof(self):
+        frame = self.frame()
+        frame.info.clear()
+        read = MagicMock()
+        self.assertEqual([], confirm_desktop_labels(frame, [("門", [(0, 1, (0, 0, 20, 20))])], "chi_sim", read))
+        read.assert_not_called()
+
+    def test_static_frame_resumes_unvisited_labels_and_keeps_completed_proofs(self):
+        source = [("門", [(0, 1, (-90+i*5, 0, -85+i*5, 10))]) for i in range(14)]
+        read = MagicMock(return_value=("門", "5\t1\t1\t1\t1\t1\t10\t10\t20\t30\t96\t門"))
+        state = {}
+        first = confirm_desktop_labels(self.frame(), source, "chi_sim", read, state=state)
+        self.assertEqual(6, len(first))
+        self.assertFalse(state["complete"])
+        second = confirm_desktop_labels(self.frame(), source, "chi_sim", read, state=state)
+        self.assertEqual(12, len(second))
+        self.assertFalse(state["complete"])
+        last = confirm_desktop_labels(self.frame(), source, "chi_sim", read, state=state)
+        self.assertEqual(14, len(last))
+        self.assertTrue(state["complete"])
+        confirm_desktop_labels(self.frame(), source, "chi_sim", read, state=state)
+        self.assertEqual(14, read.call_count)
+
+    def test_unscored_source_glyph_cannot_supply_independent_proof(self):
+        source = [("東京", [(0, 2, (-70, 0, -30, 20))])]
+        read = lambda *args: ("東京", "5\t1\t1\t1\t1\t1\t10\t10\t30\t30\t96\t東")
+        self.assertEqual([], confirm_desktop_labels(self.frame(), source, "jpn", read))
+
+    def test_scene_reread_must_reproduce_source_from_original_pixels(self):
+        source = [("日本語", [(0, 3, (-70, 0, -10, 20))])]
+        read = MagicMock(return_value=("日本語", "5\t1\t1\t1\t1\t1\t10\t10\t90\t30\t80\t日本語"))
+        self.assertEqual(1, len(confirm_desktop_labels(self.frame(), source, "jpn", read, include_long=True)))
+        self.assertEqual([], confirm_desktop_labels(self.frame(), source, "jpn", lambda *args: ("別の言葉", read.return_value[1]), include_long=True))
+
+    def test_transient_timeout_is_retried_without_caching_a_false_rejection(self):
+        source = [("門", [(0, 1, (-70, 0, -50, 20))])]
+        state = {}
+        self.assertEqual([], confirm_desktop_labels(self.frame(), source, "chi_sim", lambda *args: None, state=state))
+        self.assertFalse(state["complete"])
+        self.assertEqual(set(), state["attempted"])
+        state["retry_at"] = {}
+        read = lambda *args: ("門", "5\t1\t1\t1\t1\t1\t10\t10\t30\t30\t96\t門")
+        self.assertEqual(1, len(confirm_desktop_labels(self.frame(), source, "chi_sim", read, state=state)))
+        self.assertTrue(state["complete"])
 
 
 class ScreenTests(unittest.TestCase):

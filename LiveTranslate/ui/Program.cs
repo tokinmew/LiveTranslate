@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.6.10.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.10.0")]
+[assembly: System.Reflection.AssemblyVersion("0.6.11.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.6.11.0")]
 namespace LiveTranslate
 {
     internal static class Program

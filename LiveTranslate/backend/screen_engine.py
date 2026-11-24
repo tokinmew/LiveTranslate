@@ -19,7 +19,8 @@ import threading
 import time
 from windows_ocr import WindowsOCR, WindowsWatch
 from screen_lines import LATIN_FALLBACKS, accepted_regions
-from ocr_guard import (EnglishGuard, combine_row_results, corroborate_lines, filter_words, has_target_script,
+from ocr_guard import (DESKTOP_ICON_CONFUSABLE, EnglishGuard, combine_row_results, corroborate_lines, filter_words, has_target_script,
+                       filter_desktop_fragments,
                        join_vertical_glyphs, observe_english, overlapping_text_lines, plain_horizontal_rows,
                        plausible_band_repair, prefer_korean_row, prefer_single_line,
                        single_foreign_band, uncertain_korean_row, vertical_verifier_image, weak_foreign_line)
@@ -66,6 +67,98 @@ def page_segmentation_mode(language: str, full_monitor: bool = False) -> int:
     return 11 if full_monitor else 6
 
 
+def confirm_desktop_labels(frame, positions, language, read, *, state=None, include_long=False):
+    """Reread short labels at their actual pixels, with bounded work per frame."""
+    import math
+    import unicodedata
+    from PIL import Image, ImageOps
+    from ocr_guard import Word, parse_tsv
+    from screen_geometry import union
+    if not isinstance(frame, Image.Image):
+        return []
+    mapping = frame.info.get("desktop_map")
+    if not mapping:
+        return []
+    x, y, sx, sy = mapping
+    if sx <= 0 or sy <= 0:
+        return []
+    def compact(value):
+        return "".join(unicodedata.normalize("NFKC", value).split())
+    state = state if state is not None else {}
+    attempted = state.setdefault("attempted", set())
+    saved = state.setdefault("anchors", {})
+    retry_at = state.setdefault("retry_at", {})
+    state["complete"] = True
+    candidates = []
+    for line, spans in positions:
+        if sum(has_target_script(ch) for ch in line) <= 2:
+            for start, end, box in spans:
+                candidates.append((line[start:end], box))
+        if spans:
+            candidates.append((line, union([box for _, _, box in spans])))
+    candidates.sort(key=lambda item: (compact(item[0]), tuple(item[1])) in retry_at)
+    seen, reads = set(), 0
+    deadline = time.monotonic() + 1.5
+    for text, box in candidates:
+        source = compact(text)
+        glyphs = "".join(ch for ch in source if has_target_script(ch))
+        # A square, plus or minus is indistinguishable from some single Han
+        # characters. Such symbols need neighboring text or an explicit region.
+        if not glyphs or (len(glyphs) > 2 and not include_long) or (len(glyphs) == 1 and glyphs in DESKTOP_ICON_CONFUSABLE):
+            continue
+        identity = source, tuple(box)
+        if identity in seen or identity in attempted:
+            continue
+        seen.add(identity)
+        if time.monotonic() < retry_at.get(identity, 0):
+            state["complete"] = False
+            continue
+        if reads >= 6 or time.monotonic() >= deadline - .05:
+            state["complete"] = False
+            break
+        left, top, right, bottom = box
+        h = max(bottom - top, (right - left) / max(1, len(source)))
+        pad = max(3, math.ceil(h * .28))
+        crop_box = (max(0, math.floor((left - x - pad) / sx)),
+                    max(0, math.floor((top - y - pad) / sy)),
+                    min(frame.width, math.ceil((right - x + pad) / sx)),
+                    min(frame.height, math.ceil((bottom - y + pad) / sy)))
+        l, t, r, b = crop_box
+        if l >= r or t >= b or (r-l)*(b-t) > 160000:
+            attempted.add(identity)
+            continue
+        crop = frame.crop(crop_box)
+        scale = max(1, min(3, 54 / crop.height))
+        if scale > 1:
+            crop = crop.resize((round(crop.width*scale), round(crop.height*scale)), Image.Resampling.LANCZOS)
+        background = max(range(256), key=crop.convert("L").histogram().__getitem__)
+        crop = ImageOps.expand(crop, border=10, fill=background)
+        reads += 1
+        checked = read(crop, language, 7, min(.6, deadline-time.monotonic()))
+        if not checked:
+            # A timeout is not evidence against the text. Put fresh candidates
+            # first on the next pass, then retry this area after a short delay.
+            retry_at[identity] = time.monotonic() + 1
+            state["complete"] = False
+            continue
+        attempted.add(identity)
+        retry_at.pop(identity, None)
+        observed = compact(checked[0])
+        observed_glyphs = "".join(ch for ch in observed if has_target_script(ch))
+        if (observed != source if len(glyphs) <= 2 else observed_glyphs != glyphs):
+            continue
+        words = [word for word in parse_tsv(checked[1]) if has_target_script(word.text)]
+        scored_glyphs = "".join(ch for word in words for ch in unicodedata.normalize("NFKC", word.text) if has_target_script(ch))
+        scores = [word.confidence for word in words for char in word.text if has_target_script(char)]
+        if scored_glyphs != observed_glyphs or len(scores) != len(glyphs):
+            continue
+        confident = (scores and min(scores) >= 75 and sum(scores)/len(scores) >= 88
+                     if len(glyphs) <= 2 else scores and sum(scores)/len(scores) >= 65)
+        if confident:
+            saved[identity] = Word(text, tuple(box), sum(scores)/len(scores))
+    return list(saved.values())
+
+
 class ScreenEngine:
     def __init__(self, data_dir: Path):
         self.root = Path(data_dir) / "tessdata"
@@ -75,6 +168,7 @@ class ScreenEngine:
         self.windows = WindowsOCR()
         self.accepts_source_line = None
         self._last_frame = None
+        self._desktop_proof_state = None
         self._external_cache = None
         self._watch = threading.local()
 
@@ -352,6 +446,7 @@ class ScreenEngine:
         vertical_positions = []
         horizontal_regions = []
         partial_vertical = False
+        partial_desktop = False
         def finish(text, retry=None):
             regions = horizontal_regions + [(value, [(0,len(value),box)] if box else [])
                                             for value, box in vertical_positions]
@@ -366,6 +461,8 @@ class ScreenEngine:
             expires = expires if expires > now else float('inf')
             if partial_vertical:
                 expires = min(expires, now + 5)
+            if partial_desktop:
+                expires = min(expires, now + .75)
             self._last_frame = signature, text, expires
             return sample_frame(text, rgb_source, tracking)
 
@@ -468,14 +565,38 @@ class ScreenEngine:
             from ocr_guard import verify_hangul_suffixes
             observations = verify_hangul_suffixes(image,raw,tsv,observations,read)
         positions = []
-        result = filter_words(raw, tsv, observations, image, positions)
+        if full_display and source == "auto":
+            result = filter_words(raw, tsv, observations, image, positions, desktop_auto=True)
+        else:
+            result = filter_words(raw, tsv, observations, image, positions)
         if ("jpn_vert" in selected and result and weak_foreign_line(result) and
                 image.width > 1.25*image.height and len(plain_horizontal_rows(image)) >= 2):
             # A few guessed kana from a page made entirely of horizontal rows
             # are not evidence of a vertical Japanese caption.
             result = ""
-        weak = {line for line in result.splitlines() if weak_foreign_line(line)}
-        if result and (observations is None or weak):
+        if full_display and source == "auto" and result:
+            if self._desktop_proof_state is None or self._desktop_proof_state[0] != signature:
+                self._desktop_proof_state = (signature, {})
+            proof_state = self._desktop_proof_state[1]
+            anchors = confirm_desktop_labels(cover_frame, positions, language, read, state=proof_state,
+                                            include_long=scene_bands is not None)
+            partial_desktop = not proof_state["complete"]
+            if scene_bands is not None:
+                # Prepared scenery rows can turn repeated fabric strokes into
+                # fluent-looking text. Require the original pixels to reproduce
+                # each longer source row before it can become a translation.
+                from screen_geometry import union
+                proven = {(anchor.text, tuple(anchor.box)) for anchor in anchors}
+                positions[:] = [(line, spans) for line, spans in positions
+                                if sum(has_target_script(ch) for ch in line) <= 2 or
+                                (spans and (line, tuple(union([box for _, _, box in spans]))) in proven)]
+                located = {line for line, _ in positions}
+                result = "\n".join(line for line in result.splitlines() if line in located)
+            result = filter_desktop_fragments(result, positions, anchors)
+        local_short = {line for line in result.splitlines() if full_display and source == "auto"
+                       and sum(has_target_script(ch) for ch in line) <= 2}
+        weak = {line for line in result.splitlines() if weak_foreign_line(line) and line not in local_short}
+        if result and ((observations is None and any(line not in local_short for line in result.splitlines())) or weak):
             # Standalone CJK models can force plausible Korean/Japanese output
             # from English. A differently ordered multilingual read independently
             # checks for foreign glyphs when Windows' English OCR is unavailable.
@@ -493,7 +614,7 @@ class ScreenEngine:
                 checked = read(verifier_image,check_language,verify_psm,5) if verifier_image is not None else None
                 alternate = checked[0] if checked else ""
                 result = "\n".join(line for line in result.splitlines()
-                                   if (observations is not None and line not in weak) or
+                                   if line in local_short or (observations is not None and line not in weak) or
                                    corroborate_lines(line, alternate))
         accepted_lines = set(result.splitlines())
         for line, words in positions:

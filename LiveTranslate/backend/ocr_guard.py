@@ -432,6 +432,192 @@ def weak_foreign_line(text):
     return count <= 2 or (count <= 5 and latin >= count * 1.3) or _repeated_numeric_guess(text)
 
 
+DESKTOP_ICON_CONFUSABLE = frozenset("一二三十口回ロノニヘへくエ工リ全図圖图丨丿丶ᄆᄉᄂᄀ")
+
+
+def filter_desktop_fragments(text, positions, verified_spans=()):
+    """Require local text evidence for Auto OCR of an entire desktop.
+
+    Call only for the original full-display Auto request, never for a selected
+    region, explicit language or independently verified vertical column. Icons
+    can look exactly like isolated CJK glyphs even to two OCR configurations.
+    A separate exact crop reread can verify complex single-character labels or
+    unusually narrow text. Supply those results as Word objects with original
+    physical boxes and confidence >= 88. A lone icon-confusable glyph remains
+    ambiguous; a real word made from those glyphs needs compact word geometry
+    and an exact reread of the whole word, not individual icon matches.
+    Unrelated rows and repeated readings of the same box provide no support.
+    Update positions in place so rejected duplicate labels cannot reappear.
+    """
+    import unicodedata
+    from collections import defaultdict, deque
+
+    confusable = DESKTOP_ICON_CONFUSABLE
+    def compact(value):
+        return "".join(unicodedata.normalize("NFKC", value).split())
+
+    anchors = {(compact(hit.text), tuple(hit.box)) for hit in verified_spans
+               if isinstance(hit, Word) and math.isfinite(hit.confidence) and hit.confidence >= 88}
+    def verified(value, box):
+        return (compact(value), tuple(box)) in anchors
+
+    available = defaultdict(deque)
+    for line, spans in positions:
+        available[line].append(spans)
+    rows, nodes, physical_spans = [], [], set()
+    for line in text.splitlines():
+        spans = available[line].popleft() if available[line] else ()
+        row = len(rows)
+        rows.append(line)
+        for start, end, box in spans:
+            if (type(start) is not int or type(end) is not int or not 0 <= start < end <= len(line)
+                    or not isinstance(box, (tuple, list)) or len(box) != 4
+                    or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in box)):
+                continue
+            left, top, right, bottom = box
+            glyphs = "".join(ch for ch in unicodedata.normalize("NFKC", line[start:end]) if has_target_script(ch))
+            identity = tuple(box), compact(line[start:end])
+            if glyphs and left < right and top < bottom and identity not in physical_spans:
+                physical_spans.add(identity)
+                nodes.append((row, start, end, box, glyphs))
+
+    heights, eligible, regular = [], [], []
+    row_nodes = defaultdict(list)
+    for index, (row, start, end, box, glyphs) in enumerate(nodes):
+        row_nodes[row].append(index)
+        height = box[3] - box[1]
+        value = rows[row][start:end]
+        aspect = (box[2] - box[0]) / len(compact(value)) / height
+        icon_stroke = len(glyphs) == 1 and glyphs in confusable and len(compact(value)) == 1
+        heights.append(max(height, box[2] - box[0]) if icon_stroke else height)
+        regular.append(0.45 <= aspect <= 1.8 or len(glyphs) >= 3)
+        eligible.append(regular[-1] or icon_stroke or
+                        (0.3 <= aspect <= 2.2 and verified(value, box)))
+
+    # Established prose provides context for narrow or unusually tall word
+    # boxes in that same physical source row. A distant icon, or a narrow
+    # two-character guess by itself, cannot establish that context.
+    from statistics import median
+    context_rows, proven_rows = set(), set()
+    for row, indices in row_nodes.items():
+        glyphs = "".join(nodes[index][4] for index in indices)
+        ordered = sorted((nodes[index][3] for index in indices), key=lambda box: box[0])
+        union_box = (min(box[0] for box in ordered), min(box[1] for box in ordered),
+                     max(box[2] for box in ordered), max(box[3] for box in ordered))
+        height = median(box[3] - box[1] for box in ordered)
+        centers = [(box[1] + box[3]) / 2 for box in ordered]
+        row_glyphs = "".join(ch for ch in compact(rows[row]) if has_target_script(ch))
+        complete_source = glyphs == row_glyphs
+        compact_row = (max(centers) - min(centers) <= 0.7 * height and
+                       all(right[0] - left[2] <= 1.5 * height for left, right in zip(ordered, ordered[1:])))
+        if (complete_source and len(glyphs) >= 2 and verified(rows[row], union_box)
+                and compact_row and 0.55 <= (union_box[2] - union_box[0]) / len(glyphs) /
+                    (union_box[3] - union_box[1]) <= 1.35):
+            # Tesseract can give the first glyph the whole word's envelope,
+            # overlapping later glyphs. An exact whole-word crop proof remains
+            # valid even though those boxes cannot form independent neighbors.
+            proven_rows.add(row)
+        density = (union_box[2] - union_box[0]) / len(glyphs) / height
+        ordinary_glyphs = sum(len(nodes[index][4]) for index in indices if regular[index])
+        # Tall overlapping OCR envelopes can make real Japanese rows look
+        # narrow. Existing ordinary glyph boxes corroborate that case; a lone
+        # square plus an implausibly narrow two-character guess does not.
+        if (len(glyphs) >= 3 and any(ch not in confusable for ch in glyphs) and compact_row
+                and (0.55 <= density <= 1.8 or (0.45 <= density < 0.55 and ordinary_glyphs >= 3))):
+            context_rows.add(row)
+        if row in context_rows or row in proven_rows:
+            for index in indices:
+                eligible[index] = True
+
+    parents = list(range(len(nodes)))
+    def group(index):
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    # Sharing a vertical bucket is necessary for comparable, same-baseline
+    # glyphs. Sorting each bucket avoids comparing far-apart desktop controls.
+    buckets = defaultdict(list)
+    for index, (_, _, _, (left, top, right, bottom), _) in enumerate(nodes):
+        if not eligible[index]:
+            continue
+        for band in range(math.floor(top / 64), math.floor(bottom / 64) + 1):
+            buckets[band].append(index)
+    compared = set()
+    for indices in buckets.values():
+        indices.sort(key=lambda index: nodes[index][3][0])
+        tallest = max(heights[index] for index in indices)
+        for offset, first in enumerate(indices):
+            a = nodes[first][3]
+            ah = heights[first]
+            for second in indices[offset + 1:]:
+                b = nodes[second][3]
+                if b[0] - a[2] > 1.5 * tallest:
+                    break
+                pair = min(first, second), max(first, second)
+                if pair in compared:
+                    continue
+                compared.add(pair)
+                bh = heights[second]
+                if (max(ah, bh) > 1.8 * min(ah, bh)
+                        or abs((a[1] + a[3]) - (b[1] + b[3])) > 1.1 * max(ah, bh)
+                        or b[0] - a[2] > 1.5 * max(ah, bh)
+                        or b[0] - a[2] < -0.25 * min(a[2] - a[0], b[2] - b[0])
+                        or abs((a[0] + a[2]) - (b[0] + b[2])) < 0.7 * min(ah, bh)):
+                    continue
+                parents[group(second)] = group(first)
+
+    components = defaultdict(list)
+    for index, node in enumerate(nodes):
+        if eligible[index]:
+            components[group(index)].append(index)
+    supported = set()
+    for key, indices in components.items():
+        indices.sort(key=lambda index: nodes[index][3][0])
+        glyphs = "".join(nodes[index][4] for index in indices)
+        meaningful = any(ch not in confusable for ch in glyphs)
+        boxes = [nodes[index][3] for index in indices]
+        box = (min(b[0] for b in boxes), min(b[1] for b in boxes),
+               max(b[2] for b in boxes), max(b[3] for b in boxes))
+        value = "".join(rows[nodes[index][0]][nodes[index][1]:nodes[index][2]] for index in indices)
+        proof = verified(value, box)
+        if len(glyphs) >= 3 and meaningful:
+            supported.add(key)
+        elif meaningful and (proof or all(verified(rows[nodes[index][0]][nodes[index][1]:nodes[index][2]],
+                                                  nodes[index][3]) for index in indices)):
+            supported.add(key)
+        elif len(glyphs) >= 2 and proof:
+            height = max(heights[index] for index in indices)
+            # Tight text tracking can distinguish a verified word such as 一口
+            # from spaced toolbar buttons. Confidence alone cannot do that.
+            if (0.55 <= (box[2] - box[0]) / len(glyphs) / height <= 1.35 and
+                    all(right[0] - left[2] <= 0.65 * height for left, right in zip(boxes, boxes[1:]))):
+                supported.add(key)
+    kept = defaultdict(list)
+    for index, (row, start, end, box, _) in enumerate(nodes):
+        # OCR word boxes inside an established source line can be very narrow
+        # or have different ink heights. Do not turn a genuine sentence into
+        # fragments merely because a short word lacks icon-sized proportions.
+        if row in context_rows or row in proven_rows or (eligible[index] and group(index) in supported):
+            kept[row].append((start, end, box))
+
+    result, retained = [], []
+    for row, line in enumerate(rows):
+        spans = kept[row]
+        if not spans:
+            continue
+        covered = {index for start, end, _ in spans for index in range(start, end)}
+        cleaned = "".join(ch if not has_target_script(ch) or index in covered else " "
+                          for index, ch in enumerate(line))
+        trim = len(cleaned) - len(cleaned.lstrip())
+        cleaned = cleaned.strip()
+        result.append(cleaned)
+        retained.append((cleaned, [(start - trim, end - trim, box) for start, end, box in spans]))
+    positions[:] = retained
+    return "\n".join(result)
+
+
 def vertical_verifier_image(image, gap_ratio=0.16):
     """Reflow a clear upright Japanese column for a second horizontal read.
 
@@ -551,7 +737,7 @@ def verify_hangul_suffixes(image, raw, tsv, observations, read):
     return [h for h in observations if (h.text,h.box) not in unconfirmed]
 
 
-def filter_words(raw, tsv, observations, image=None, positions=None):
+def filter_words(raw, tsv, observations, image=None, positions=None, *, desktop_auto=False):
     """Preserve source spacing/layout where possible. Never reconstruct English as CJK."""
     if not has_target_script(raw):
         return ""
@@ -575,7 +761,7 @@ def filter_words(raw, tsv, observations, image=None, positions=None):
         for bucket in range(hit.box[1] // 64, hit.box[3] // 64 + 1):
             bins.setdefault(bucket, []).append(hit.box)
     stroke_map = _InkCoverage(image, observations) if image is not None and observations else None
-    minimum = 66 if observations is None else 40
+    minimum = 66 if observations is None or desktop_auto else 40
     vetoed = set()
     supported = {}
     for i, word in enumerate(words):

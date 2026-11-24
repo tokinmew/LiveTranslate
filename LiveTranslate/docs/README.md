@@ -42,7 +42,7 @@ Open the Windows setup application and select **Install**. Open **LiveTranslate*
 
 | Input | Using it |
 | --- | --- |
-| Screen | **Watch screen** starts on the primary display. Use **Capture area** for another display, a subtitle region or a vertical Japanese column. Select a specific source language for expanded screen languages. |
+| Screen | **Watch screen** starts on the primary display. Use **Capture area** for another display, a subtitle region or a vertical Japanese column. Select a specific source language for expanded screen languages. Automatic full-display reading rejects ambiguous isolated symbols; use a selected area or specific language for a real one-character label. Text over clothing or other patterns can still be missed or misread. |
 | Written text | Choose the source language and paste a passage. English-only lines are filtered. Short words shared with English can be skipped. |
 | Games, videos and calls | Choose **Computer audio**, then turn on **Auto listen**. If the meter stays quiet, choose the output actually used by the game or chat app. |
 | Voices in the room | Choose your microphone or **Computer + microphone**. Turn **Auto listen** off to release the inputs. |

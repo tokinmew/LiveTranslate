@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from ocr_guard import (EnglishGuard, Word, combine_row_results, corroborate_lines, filter_words, has_target_script,
+from ocr_guard import (EnglishGuard, Word, combine_row_results, corroborate_lines, filter_desktop_fragments, filter_words, has_target_script,
                        join_vertical_glyphs, overlapping_text_lines, parse_tsv, plain_horizontal_rows,
                        prefer_korean_row, prefer_single_line, uncertain_korean_row, weak_foreign_line)
 
@@ -34,6 +34,16 @@ class OcrGuardTests(unittest.TestCase):
         self.assertEqual("電車",filter_words("電車",tsv("電車",10,94),None))
         data="\n".join([tsv("日",5,96),tsv("本",33,93),tsv("語",60,0)])
         self.assertEqual("日本語",filter_words("日本語",data,None))
+
+    def test_desktop_confidence_rejects_faint_icon_words_without_changing_region_reads(self):
+        raw = "加 个"
+        data = tsv("加", 0, 57.64, width=12) + "\n" + tsv("个", 25, 64.94, width=12)
+        self.assertEqual(raw, filter_words(raw, data, []))
+        self.assertEqual("", filter_words(raw, data, [], desktop_auto=True))
+
+    def test_desktop_confidence_keeps_weak_glyph_supported_by_two_strong_words(self):
+        data = "\n".join([tsv("日", 5, 96), tsv("本", 33, 93), tsv("語", 60, 0)])
+        self.assertEqual("日本語", filter_words("日本語", data, [], desktop_auto=True))
 
     def test_bad_tsv_does_not_turn_into_an_unguarded_caption(self):
         self.assertEqual([],parse_tsv("level\ttext\n5\tbad"))
@@ -123,6 +133,235 @@ class OcrGuardTests(unittest.TestCase):
         self.assertEqual("",filter_words("017 19187 태11 0800",tsv("태11",150),observation))
         self.assertEqual("20분",filter_words("20분",tsv("20분",50),observation))
         self.assertEqual("口",filter_words("口",tsv("口",50),observation))
+
+
+class DesktopFragmentTests(unittest.TestCase):
+    def fragment(self, text, box, start=0, end=None):
+        return text, [(start, len(text) if end is None else end, box)]
+
+    def test_full_desktop_icon_guesses_have_no_text_support(self):
+        positions = [self.fragment("一", (1792, 11, 1802, 13)),
+                     self.fragment("回", (1838, 7, 1848, 17)),
+                     self.fragment("十", (1715, 55, 1727, 67)),
+                     self.fragment("回", (349, 654, 355, 656)),
+                     self.fragment("서", (12, 280, 28, 297)),
+                     self.fragment("@ 加", (12, 330, 28, 347)),
+                     self.fragment("品", (12, 380, 28, 397))]
+        self.assertEqual("", filter_desktop_fragments("\n".join(line for line, _ in positions), positions))
+        self.assertEqual([], positions)
+
+    def test_unrelated_rows_or_distant_glyphs_cannot_corroborate_each_other(self):
+        for second in ((0, 40, 20, 60), (500, 0, 520, 20), (25, 0, 65, 40)):
+            with self.subTest(second=second):
+                positions = [self.fragment("東", (0, 0, 20, 20)), self.fragment("京", second)]
+                self.assertEqual("", filter_desktop_fragments("東\n京", positions))
+                self.assertEqual([], positions)
+
+    def test_real_adjacent_short_cjk_runs_remain(self):
+        for source in ("東京", "はい", "한국", "口に入る", "次の電車は何時ですか"):
+            with self.subTest(source=source):
+                positions = [self.fragment(source, (0, 0, 20 * len(source), 20))]
+                anchors = [Word(source, (0, 0, 20 * len(source), 20), 94)] if len(source) <= 2 else []
+                self.assertEqual(source, filter_desktop_fragments(source, positions, anchors))
+                self.assertEqual(1, len(positions))
+
+    def test_adjacent_glyphs_across_ocr_rows_share_horizontal_evidence(self):
+        positions = [self.fragment("東", (-140, -42, -120, -22)),
+                     self.fragment("京", (-116, -41, -96, -21))]
+        expected = list(positions)
+        anchors = [Word(source, spans[0][2], 94) for source, spans in positions]
+        self.assertEqual("東\n京", filter_desktop_fragments("東\n京", positions, anchors))
+        self.assertEqual(expected, positions)
+
+    def test_pure_icon_confusable_runs_remain_ambiguous(self):
+        for source in ("口回十", "一口", "ロノニ", "回回回回"):
+            with self.subTest(source=source):
+                positions = [self.fragment(source, (0, 0, 20 * len(source), 20))]
+                self.assertEqual("", filter_desktop_fragments(source, positions))
+                self.assertEqual([], positions)
+
+    def test_ascii_text_does_not_support_a_single_foreign_guess(self):
+        positions = [self.fragment("@ 加 Products", (0, 0, 190, 20))]
+        self.assertEqual("", filter_desktop_fragments("@ 加 Products", positions))
+        self.assertEqual([], positions)
+
+    def test_meaningful_neighbor_can_support_a_real_short_label(self):
+        positions = [self.fragment("口", (0, 0, 20, 20)), self.fragment("東京", (24, 0, 64, 20))]
+        self.assertEqual("口\n東京", filter_desktop_fragments("口\n東京", positions))
+        self.assertEqual(2, len(positions))
+
+    def test_duplicate_boxes_do_not_add_independent_source_evidence(self):
+        positions = [self.fragment("서", (0, 0, 20, 20)), self.fragment("서", (0, 0, 20, 20))]
+        self.assertEqual("", filter_desktop_fragments("서\n서", positions))
+        self.assertEqual([], positions)
+
+    def test_rejected_duplicate_text_has_its_own_position_removed(self):
+        positions = [self.fragment("東", (0, 0, 20, 20)), self.fragment("京", (24, 0, 44, 20)),
+                     self.fragment("東", (500, 500, 520, 520))]
+        anchors = [Word("東", (0, 0, 20, 20), 94), Word("京", (24, 0, 44, 20), 94)]
+        self.assertEqual("東\n京", filter_desktop_fragments("東\n京\n東", positions, anchors))
+        self.assertEqual(2, len(positions))
+        self.assertTrue(all(box[0] < 100 for _, spans in positions for _, _, box in spans))
+
+    def test_unsupported_fragment_is_removed_from_an_otherwise_valid_line(self):
+        positions = [("東京   口", [(0, 2, (0, 0, 40, 20)), (5, 6, (500, 0, 520, 20))])]
+        self.assertEqual("東京", filter_desktop_fragments("東京   口", positions, [Word("東京", (0, 0, 40, 20), 94)]))
+        self.assertEqual([("東京", [(0, 2, (0, 0, 40, 20))])], positions)
+
+    def test_missing_invalid_or_unpositioned_evidence_fails_closed(self):
+        for spans in ([], [(0, 2, None)], [(0, 2, (0, 0, 0, 20))],
+                      [(0, 2, (0, 0, float("nan"), 20))]):
+            with self.subTest(spans=spans):
+                positions = [("東京", spans)]
+                self.assertEqual("", filter_desktop_fragments("東京", positions))
+                self.assertEqual([], positions)
+        positions = [self.fragment("東京口", (0, 0, 40, 20), end=2)]
+        self.assertEqual("東京", filter_desktop_fragments("東京口", positions, [Word("東京", (0, 0, 40, 20), 94)]))
+        self.assertEqual([("東京", [(0, 2, (0, 0, 40, 20))])], positions)
+
+
+    def test_exact_local_read_can_preserve_complex_single_character_labels(self):
+        box = (-80, -20, -60, 0)
+        for source in ("門", "人", "左", "서", "加", "ｱ"):
+            with self.subTest(source=source):
+                positions = [self.fragment(source, box)]
+                anchors = [Word(" ア " if source == "ｱ" else source, box, 94)]
+                self.assertEqual(source, filter_desktop_fragments(source, positions, anchors))
+                self.assertEqual(1, len(positions))
+
+    def test_single_label_proof_must_be_exact_confident_and_at_the_same_box(self):
+        box = (0, 0, 20, 20)
+        for anchor in (Word("門", box, 87), Word("門", box, float("nan")),
+                       Word("問", box, 99), Word("門", (500, 0, 520, 20), 99), Word("Door門", box, 99)):
+            with self.subTest(anchor=anchor):
+                positions = [self.fragment("門", box)]
+                self.assertEqual("", filter_desktop_fragments("門", positions, [anchor]))
+                self.assertEqual([], positions)
+
+    def test_confidence_cannot_disambiguate_single_icon_shapes(self):
+        for source, box in (("一", (1792, 11, 1802, 13)), ("回", (1838, 7, 1848, 17)),
+                            ("十", (1715, 55, 1727, 67)), ("口", (0, 0, 20, 20)),
+                            ("図", (0, 0, 20, 20)), ("圖", (0, 0, 20, 20)), ("图", (0, 0, 20, 20)),
+                            ("ㅁ", (0, 0, 20, 20)), ("ㅅ", (0, 0, 20, 20)),
+                            ("ㄴ", (0, 0, 20, 20)), ("ㄱ", (0, 0, 20, 20))):
+            with self.subTest(source=source):
+                positions = [self.fragment(source, box)]
+                self.assertEqual("", filter_desktop_fragments(source, positions, [Word(source, box, 99)]))
+                self.assertEqual([], positions)
+
+    def test_graph_words_and_normal_hangul_syllables_are_not_blanket_banned(self):
+        for source in ("中文圖片", "圖案", "地图", "図書", "네", "응"):
+            with self.subTest(source=source):
+                box = (0, 0, 20 * len(source), 20)
+                positions = [self.fragment(source, box)]
+                anchors = [Word(source, box, 94)] if len(source) <= 2 else []
+                self.assertEqual(source, filter_desktop_fragments(source, positions, anchors))
+        for source in ("圖", "ㅁ"):
+            self.assertEqual(source, filter_words(source, tsv(source, 0), []))
+
+    def test_verified_compact_word_of_confusable_characters_is_preserved(self):
+        box = (0, 0, 40, 20)
+        positions = [self.fragment("一口", box)]
+        self.assertEqual("一口", filter_desktop_fragments("一口", positions, [Word("一口", box, 94)]))
+        self.assertEqual(1, len(positions))
+
+    def test_whole_word_proof_preserves_split_thin_stroke_and_full_glyph(self):
+        spans = [(0, 1, (0, 9, 20, 11)), (1, 2, (24, 0, 44, 20))]
+        positions = [("一口", spans)]
+        anchors = [Word("一 口", (0, 0, 44, 20), 94)]
+        self.assertEqual("一口", filter_desktop_fragments("一口", positions, anchors))
+        self.assertEqual([("一口", spans)], positions)
+        positions = [("一口", spans)]
+        singles = [Word("一", spans[0][2], 99), Word("口", spans[1][2], 99)]
+        self.assertEqual("", filter_desktop_fragments("一口", positions, singles))
+
+    def test_loose_icon_runs_remain_rejected_even_with_exact_high_confidence_read(self):
+        positions = [("一口回", [(0, 1, (0, 0, 20, 20)), (1, 2, (40, 0, 60, 20)),
+                                (2, 3, (80, 0, 100, 20))])]
+        proof = [Word("一口回", (0, 0, 100, 20), 99)]
+        self.assertEqual("", filter_desktop_fragments("一口回", positions, proof))
+        self.assertEqual([], positions)
+
+    def test_unusually_narrow_real_words_need_local_verification(self):
+        box = (0, 0, 16, 20)
+        positions = [self.fragment("東京", box)]
+        self.assertEqual("", filter_desktop_fragments("東京", positions))
+        positions = [self.fragment("東京", box)]
+        self.assertEqual("東京", filter_desktop_fragments("東京", positions, [Word("東京", box, 94)]))
+
+    def test_one_icon_cannot_supply_multiple_guessed_characters_or_support_neighbors(self):
+        box = (0, 0, 8, 20)
+        positions = [self.fragment("加个 \\ ※", box)]
+        self.assertEqual("", filter_desktop_fragments("加个 \\ ※", positions))
+        positions = [("口 패소 VM ※", [(0, 1, (0, 0, 16, 20)), (2, 4, (20, 0, 28, 20))])]
+        self.assertEqual("", filter_desktop_fragments("口 패소 VM ※", positions))
+        positions = [self.fragment("패소", box)]
+        self.assertEqual("", filter_desktop_fragments("패소", positions, [Word("패소", box, 99)]))
+
+    def test_long_source_line_preserves_narrow_and_uneven_word_boxes(self):
+        source = "次の電車は何時ですか"
+        spans = [(0, 2, (-180, -30, -140, -10)),
+                 (2, 4, (-136, -40, -114, 0)),
+                 (4, 5, (-110, -25, -102, -15)),
+                 (5, 7, (-98, -30, -58, -10)),
+                 (7, 10, (-54, -44, -29, 2))]
+        positions = [(source, spans)]
+        self.assertEqual(source, filter_desktop_fragments(source, positions))
+        self.assertEqual([(source, spans)], positions)
+
+    def test_long_context_cannot_be_borrowed_from_separate_screen_lines(self):
+        source = "東\n京\n門"
+        positions = [self.fragment("東", (0, 0, 20, 20)), self.fragment("京", (300, 0, 320, 20)),
+                     self.fragment("門", (0, 300, 20, 320))]
+        self.assertEqual("", filter_desktop_fragments(source, positions))
+        self.assertEqual([], positions)
+
+    def test_two_character_components_need_local_proof_not_just_nearby_guesses(self):
+        for source in ("東京", "はい", "한국", "ニン", "时个"):
+            with self.subTest(source=source):
+                box = (0, 0, 40, 20)
+                positions = [self.fragment(source, box)]
+                self.assertEqual("", filter_desktop_fragments(source, positions))
+                positions = [self.fragment(source, box)]
+                self.assertEqual(source, filter_desktop_fragments(source, positions, [Word(source, box, 94)]))
+        positions = [self.fragment("加", (0, 0, 12, 12)), self.fragment("个", (25, 0, 37, 12))]
+        self.assertEqual("", filter_desktop_fragments("加\n个", positions))
+
+    def test_exact_short_word_proof_accepts_overlapping_tesseract_glyph_boxes(self):
+        cases = (("一口", [(0, 1, (68, 61, 129, 89)), (1, 2, (108, 59, 129, 101))],
+                  (68, 59, 129, 101)),
+                 ("二十", [(0, 1, (69, 60, 132, 90)), (1, 2, (105, 56, 133, 101))],
+                  (69, 56, 133, 101)))
+        for source, spans, box in cases:
+            with self.subTest(source=source):
+                positions = [(source, spans)]
+                self.assertEqual(source, filter_desktop_fragments(source, positions, [Word(source, box, 93)]))
+                self.assertEqual([(source, spans)], positions)
+
+    def test_long_word_with_overlapping_word_envelope_keeps_all_source_glyphs(self):
+        source = "工場入口"
+        spans = [(0, 2, (37, 60, 160, 90)), (2, 3, (113, 60, 143, 90)),
+                 (3, 4, (141, 60, 160, 90))]
+        positions = [(source, spans)]
+        self.assertEqual(source, filter_desktop_fragments(source, positions))
+        self.assertEqual([(source, spans)], positions)
+
+    def test_japanese_row_with_tall_overlapping_envelopes_keeps_ordinary_text(self):
+        source = "次の電車は何時ですか。"
+        spans = [(0, 1, (262, 254, 299, 291)), (1, 2, (313, 257, 335, 288)),
+                 (2, 4, (340, 254, 666, 291)), (4, 5, (441, 224, 466, 303)),
+                 (5, 7, (465, 224, 556, 303)), (7, 8, (552, 224, 585, 303)),
+                 (8, 10, (584, 224, 642, 303))]
+        positions = [(source, spans)]
+        self.assertEqual(source, filter_desktop_fragments(source, positions))
+        self.assertEqual([(source, spans)], positions)
+
+    def test_repeated_identical_physical_evidence_does_not_invent_a_second_character(self):
+        box = (0, 0, 20, 20)
+        positions = [("서서", [(0, 1, box), (1, 2, box)])]
+        self.assertEqual("", filter_desktop_fragments("서서", positions, [Word("서서", box, 99)]))
+        positions = [("서서", [(0, 1, box), (1, 2, box)])]
+        self.assertEqual("서", filter_desktop_fragments("서서", positions, [Word("서", box, 99)]))
 
 
 if __name__ == "__main__":

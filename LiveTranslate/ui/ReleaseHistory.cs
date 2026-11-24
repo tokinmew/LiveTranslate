@@ -25,6 +25,10 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.6.11", "Fewer false screen captions",
+                "Automatic full-display reading checks short text at its original screen position and rejects isolated toolbar symbols and unsupported fragments.",
+                "Added checks against clothing-like patterns and textured backgrounds. These reduce false captions; difficult text over patterns can still be missed or misread.",
+                "Short-label checks resume across unchanged frames when their work budget is reached. Choose a specific language or capture area for an ambiguous one-character label."),
             new ReleaseNote("0.6.10", "Updates through GitHub Releases",
                 "Check for updates uses the official LiveTranslate GitHub release channel. Old local feed choices no longer control which version is offered.",
                 "Removed local manifest selection and bundled release fallback. Connection failures show an actionable error instead of reporting a local version as current."),
