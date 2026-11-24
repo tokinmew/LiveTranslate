@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 
 namespace LiveTranslate
@@ -8,11 +9,12 @@ namespace LiveTranslate
     // Colors belong to this application. Windows theme preferences are never changed.
     internal static class WindowTheme
     {
+        private static readonly ConditionalWeakTable<Control, object> watchedControls = new ConditionalWeakTable<Control, object>();
         internal static bool HighContrast { get { return SystemInformation.HighContrast; } }
         internal static Color Background { get { return HighContrast ? SystemColors.Window : Color.FromArgb(9, 14, 22); } }
         internal static Color Card { get { return HighContrast ? SystemColors.Window : Color.FromArgb(20, 27, 38); } }
         internal static Color Field { get { return HighContrast ? SystemColors.Window : Color.FromArgb(14, 21, 32); } }
-        internal static Color Border { get { return HighContrast ? SystemColors.WindowText : Color.FromArgb(67, 78, 94); } }
+        internal static Color Border { get { return HighContrast ? SystemColors.WindowText : Color.FromArgb(40, 52, 70); } }
         internal static Color Ink { get { return HighContrast ? SystemColors.WindowText : Color.FromArgb(245, 247, 251); } }
         internal static Color Muted { get { return HighContrast ? SystemColors.WindowText : Color.FromArgb(157, 171, 191); } }
         internal static Color Accent { get { return HighContrast ? SystemColors.Highlight : Color.FromArgb(54, 224, 190); } }
@@ -43,7 +45,25 @@ namespace LiveTranslate
             if (window == null) return;
             window.HandleCreated += delegate { ApplyFrame(window); };
             window.SystemColorsChanged += delegate { ApplyFrame(window); };
+            WatchControls(window);
             if (window.IsHandleCreated) ApplyFrame(window);
+        }
+
+        private static void WatchControls(Control parent)
+        {
+            object watched;
+            if (watchedControls.TryGetValue(parent, out watched)) return;
+            watchedControls.Add(parent, new object());
+            AttachScrollbars(parent);
+            parent.ControlAdded += delegate(object sender, ControlEventArgs e) { WatchControls(e.Control); };
+            foreach (Control child in parent.Controls) WatchControls(child);
+        }
+
+        private static void AttachScrollbars(Control control)
+        {
+            ScrollableControl scrolling = control as ScrollableControl;
+            if (control is TextBoxBase || control is ListView || (scrolling != null && scrolling.AutoScroll))
+                QuietScrollbars.Attach(control);
         }
 
         private static void ApplyFrame(Form window)
@@ -65,6 +85,7 @@ namespace LiveTranslate
         internal static void ApplyControl(Control control)
         {
             if (control == null || control.IsDisposed || !control.IsHandleCreated) return;
+            AttachScrollbars(control);
             try { SetWindowTheme(control.Handle, HighContrast ? null : control is ComboBox ? "DarkMode_CFD" : "DarkMode_Explorer", null); }
             catch (DllNotFoundException) { }
             catch (EntryPointNotFoundException) { }

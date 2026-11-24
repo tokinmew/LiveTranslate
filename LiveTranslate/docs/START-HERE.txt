@@ -1,4 +1,7 @@
-LiveTranslate 0.7.0 for Windows 11 x64
+LiveTranslate 0.7.1 for Windows 11 x64
+
+This patch removes bright default Windows surfaces from app controls, using
+subtle dark borders and scrollbars while keeping clear keyboard focus.
 
 The sidebar opens Live session, Session history, Audio setup and Settings.
 Choose your real audio input in Audio setup. Translation currently targets

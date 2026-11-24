@@ -1,4 +1,6 @@
-# LiveTranslate 0.7.0 for Windows 11 x64
+# LiveTranslate 0.7.1 for Windows 11 x64
+
+The 0.7.1 patch gives selectors, settings tabs, input borders, numeric buttons and scrollbars a consistent dark surface. Focus remains visible, and the styling applies within LiveTranslate. Windows theme preferences are unchanged.
 
 ## The new workspace
 

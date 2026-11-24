@@ -50,6 +50,14 @@ namespace LiveTranslate
     internal sealed class CaptionOption : CheckBox
     {
         internal CaptionOption() { Cursor = Cursors.Hand; BackColor = WindowTheme.Card; ForeColor = WindowTheme.Muted; SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true); }
+        public override Size GetPreferredSize(Size proposedSize)
+        {
+            if (!AutoSize) return base.GetPreferredSize(proposedSize);
+            Size words = TextRenderer.MeasureText(Text, Font);
+            float scale = DeviceDpi / 96F;
+            return new Size(words.Width + (int)Math.Ceiling(26 * scale) + Padding.Horizontal,
+                Math.Max(words.Height, (int)Math.Ceiling(20 * scale)) + Padding.Vertical);
+        }
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -63,7 +71,7 @@ namespace LiveTranslate
             Color boxColor = !Enabled ? WindowTheme.Disabled : WindowTheme.Accent;
             using (GraphicsPath check = ModernGeometry.Rounded(new RectangleF(x,y,size,size),4*s))
             using (Brush fill = new SolidBrush(Checked ? boxColor : WindowTheme.HighContrast ? SystemColors.Window : WindowTheme.Field))
-            using (Pen outline = new Pen(Checked ? boxColor : Enabled ? WindowTheme.Muted : WindowTheme.Disabled)) {
+            using (Pen outline = new Pen(Checked ? boxColor : WindowTheme.HighContrast ? SystemColors.WindowText : WindowTheme.Border)) {
                 g.FillPath(fill,check); g.DrawPath(outline,check);
             }
             if (Checked) using (Pen line = new Pen(WindowTheme.AccentInk,1.8F*s) { LineJoin=LineJoin.Round, StartCap=LineCap.Round, EndCap=LineCap.Round })

@@ -1,4 +1,12 @@
-# LiveTranslate 0.7.0 release testing
+# LiveTranslate 0.7.1 release testing
+
+The 0.7.1 patch replaces bright native control surfaces with application-owned dark painting. The closed and open selectors, settings tab headers and page frame, numeric buttons, field edges and native scrollbar rectangles are checked using actual rendered Windows controls. Native selection, numeric changes, text selection, tab navigation and scrollbar ranges remain under Windows control. Scrollbar appearance uses the existing scrollbars rather than a separate history or scrolling model.
+
+The existing native UI fixtures continue to cover capture routing, transcript selection, page state, reply practice, settings, updater UI, changelog and the PC caption card. Added focused theme fixtures exercise enabled and disabled fields, an open native dropdown, dark pixels, numeric buttons, scrolling, focus and compact layouts. These fixtures create isolated windows and generated content, without starting capture or reading personal screens.
+
+The input-frame approach was informed by Tokin Desktop Commands' earlier outline fix. The implementation is scoped to LiveTranslate windows; it does not change Windows theme preferences, security settings, registry values or system files. High contrast keeps system colors. Physical headset and day-to-day field testing remain separate from these native fixtures.
+
+## Earlier 0.7.0 results
 
 The 0.7.0 redesign is a native Windows Forms workspace built from the supplied Live session, Audio setup and floating-caption design references. Four persistent pages reuse the existing controls and one transcript. The updater still accepts the original signing key and public GitHub stable releases.
 

@@ -191,7 +191,7 @@ namespace LiveTranslate
         readonly bool[] manualReading = new bool[3];
         readonly string[] displayed = new string[3];
         readonly Label idle = new Label();
-        readonly ComboBox filter = new ComboBox();
+        readonly ComboBox filter = new ThemedComboBox();
         readonly Timer expiryTimer = new Timer();
         readonly ToolTip hints = new ToolTip();
         readonly VrStatusBadge status = new VrStatusBadge();
@@ -222,6 +222,7 @@ namespace LiveTranslate
             AccessibleName = WindowTitle;
             BackColor = Background;
             Font = toolbarFont;
+            WindowTheme.Apply(this);
             MinimumSize = new Size(620, 350);
             ClientSize = new Size(900, 440);
             FormBorderStyle = FormBorderStyle.None;

@@ -204,14 +204,14 @@ namespace LiveTranslate
             controls.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             for (int i = 0; i < 6; i++) controls.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             controls.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            speakEnabled = new CheckBox { Text = "Read voice translations aloud", AutoSize = true, ForeColor = ink, Checked = voicePrefs.Enabled,
+            speakEnabled = new CaptionOption { Text = "Read voice translations aloud", AutoSize = true, ForeColor = ink, Checked = voicePrefs.Enabled,
                 Margin = new Padding(0, 1, 0, 6), Font = new Font(Font, FontStyle.Bold) };
             controls.Controls.Add(speakEnabled, 0, 0); controls.SetColumnSpan(speakEnabled, 2);
             spokenVoice = Combo(); spokenDevice = Combo();
             AddSetting(controls, 1, "English voice", spokenVoice);
             AddSetting(controls, 2, "Playback device", spokenDevice);
-            spokenRate = new NumericUpDown { Minimum = -10, Maximum = 10, Value = Math.Min(10, Math.Max(-10, voicePrefs.Rate)), Width = 100 };
-            spokenVolume = new NumericUpDown { Minimum = 0, Maximum = 100, Value = Math.Min(100, Math.Max(0, voicePrefs.Volume)), Width = 100 };
+            spokenRate = new ThemedNumericUpDown { Minimum = -10, Maximum = 10, Value = Math.Min(10, Math.Max(-10, voicePrefs.Rate)), Width = 100 };
+            spokenVolume = new ThemedNumericUpDown { Minimum = 0, Maximum = 100, Value = Math.Min(100, Math.Max(0, voicePrefs.Volume)), Width = 100 };
             voicePrefs.Rate = (int)spokenRate.Value; voicePrefs.Volume = (int)spokenVolume.Value;
             AddSetting(controls, 3, "Speed (0 = normal)", spokenRate);
             AddSetting(controls, 4, "Voice volume (%)", spokenVolume);

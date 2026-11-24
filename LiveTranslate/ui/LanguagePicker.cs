@@ -70,7 +70,7 @@ namespace LiveTranslate
         private static Color Ink { get { return WindowTheme.Ink; } }
         private static Color Quiet { get { return WindowTheme.Muted; } }
         private static Color Primary { get { return WindowTheme.Accent; } }
-        private readonly TextBox search = new TextBox();
+        private readonly TextBox search = new ThemedTextBox();
         private readonly ListView results = new LanguageResults();
         private readonly Label resultCount = new Label();
         private readonly Button use = new ModernButton();

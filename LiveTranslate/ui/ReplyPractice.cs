@@ -93,7 +93,7 @@ namespace LiveTranslate
             draftCard.Margin = new Padding(0, 0, 0, 10);
             TableLayoutPanel draftLayout = Rows(28, 0, 40);
             draftLayout.Controls.Add(Title("Your English reply", paperInk, 13F), 0, 0);
-            practiceDraft = new TextBox { Multiline = true, AcceptsReturn = true, MaxLength = 500, Dock = DockStyle.Fill,
+            practiceDraft = new ThemedTextBox { Multiline = true, AcceptsReturn = true, MaxLength = 500, Dock = DockStyle.Fill,
                 AccessibleName = "Your English reply, 500 characters maximum", BackColor = WindowTheme.Field,
                 ForeColor = WindowTheme.Ink, Font = new Font(Font.FontFamily, 12F), ScrollBars = ScrollBars.Vertical,
                 BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 4, 0, 7) };

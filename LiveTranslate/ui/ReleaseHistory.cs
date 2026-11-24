@@ -25,6 +25,9 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.7.1", "Smoother dark controls",
+                "Removed bright Windows surfaces from audio and language selectors, settings tabs, field outlines, numeric controls and scrollbars. Surfaces now follow the app's dark tones, with clear keyboard focus.",
+                "Kept native device selection, keyboard input, scrolling and accessibility behavior. The styling applies only to LiveTranslate; Windows preferences are unchanged."),
             new ReleaseNote("0.7.0", "A new translation workspace",
                 "A dark sidebar opens Live session, Session history, Audio setup and Settings. Moving between pages keeps the current capture session and transcript.",
                 "Pause translation remembers active inputs; End session stops capture while keeping captions. Save transcript exports the current session only when you choose a file.",
@@ -90,9 +93,9 @@ namespace LiveTranslate
 
     internal sealed class ReleaseHistoryWindow : Form
     {
-        private readonly ComboBox versions = new ComboBox();
+        private readonly ComboBox versions = new ThemedComboBox();
         private readonly Label title = new Label();
-        private readonly TextBox notes = new TextBox();
+        private readonly TextBox notes = new ThemedTextBox();
         private readonly Font titleFont;
 
         internal ReleaseHistoryWindow(Font textFont)

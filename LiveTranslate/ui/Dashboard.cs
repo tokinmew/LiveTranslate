@@ -93,7 +93,7 @@ namespace LiveTranslate
 
         private ComboBox Combo()
         {
-            return new ComboBox
+            return new ThemedComboBox
             {
                 Dock = DockStyle.Fill,
                 DropDownStyle = ComboBoxStyle.DropDownList,
@@ -106,7 +106,7 @@ namespace LiveTranslate
 
         private TextBox Entry(string text)
         {
-            return new TextBox
+            return new ThemedTextBox
             {
                 Text = text,
                 Dock = DockStyle.Fill,
@@ -413,7 +413,7 @@ namespace LiveTranslate
             title.Padding = new Padding(5, 0, 0, 0);
             main.Controls.Add(title, 0, 0);
             settingsForm.Controls.Add(main);
-            settingsTabs = new TabControl
+            settingsTabs = new ThemedTabControl
             {
                 Dock = DockStyle.Fill,
                 Padding = new Point(10, 7),
@@ -466,7 +466,7 @@ namespace LiveTranslate
             audioLanguage = Entry("auto");
             AddSetting(controls, 3, "Speech language code", audioLanguage);
             FlowLayoutPanel tuning = Flow();
-            chunks = new NumericUpDown
+            chunks = new ThemedNumericUpDown
             {
                 Minimum = 3,
                 Maximum = 12,
@@ -475,7 +475,7 @@ namespace LiveTranslate
                 BackColor = field,
                 ForeColor = ink
             };
-            threads = new NumericUpDown
+            threads = new ThemedNumericUpDown
             {
                 Minimum = 1,
                 Maximum = 8,
@@ -528,7 +528,7 @@ namespace LiveTranslate
             refresh.Width = 185;
             deviceActions.Controls.Add(refresh);
             AddSetting(controls, 5, "Audio devices", deviceActions);
-            CheckBox keepMainOnTop = new CheckBox
+            CheckBox keepMainOnTop = new CaptionOption
             {
                 Text = "Keep the dashboard on top",
                 ForeColor = ink, AutoSize = true, Dock = DockStyle.Left
