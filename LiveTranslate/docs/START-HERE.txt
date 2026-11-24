@@ -1,4 +1,7 @@
-LiveTranslate 0.7.1 for Windows 11 x64
+LiveTranslate 0.7.2 for Windows 11 x64
+
+This patch fixes the capture-area menu error when choosing a display or
+drawing an area. Canceling a drawing keeps your previous capture target.
 
 This patch removes bright default Windows surfaces from app controls, using
 subtle dark borders and scrollbars while keeping clear keyboard focus.

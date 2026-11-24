@@ -25,6 +25,11 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.7.2", "Capture area menu no longer closes with an error",
+                "Fixed the disposed ContextMenuStrip error when choosing a display or drawing a capture area. The capture menu now lives with the dashboard, and selection actions wait for menu dismissal to finish.",
+                "Canceling a drawn area retains the previous target. Closing the dashboard during a drawing also closes its selector safely.",
+                "Reopening minimized Settings restores the window without losing pending edits. The floating caption footer now identifies a manual screen read while automatic capture is paused.",
+                "The capture popup follows the dark app theme, with system rendering retained for high contrast."),
             new ReleaseNote("0.7.1", "Smoother dark controls",
                 "Removed bright Windows surfaces from audio and language selectors, settings tabs, field outlines, numeric controls and scrollbars. Surfaces now follow the app's dark tones, with clear keyboard focus.",
                 "Kept native device selection, keyboard input, scrolling and accessibility behavior. The styling applies only to LiveTranslate; Windows preferences are unchanged."),

@@ -1,4 +1,10 @@
-# LiveTranslate 0.7.1 release testing
+# LiveTranslate 0.7.2 release testing
+
+The 0.7.2 patch corrects capture-menu lifetime. The menu remains owned by the dashboard until that form is disposed, and selected actions run after native menu dismissal. The existing target selection, region cancellation, capture intent and stale-session protections remain in use. The original disposed-menu exception was reproduced through native menu click messages before the fix. A separate drawing/shutdown crash was reproduced and corrected with owned-selector cleanup and closing guards.
+
+Focused fixtures exercise native display selection, Escape, drawn-area acceptance/cancellation, repeated menu reopening, duplicate callbacks, owner shutdown, dark popup pixels, minimized Settings restoration and edit retention, reply/caption window reopening, and paused manual-read status. A 25-cycle UI walkthrough/stress fixture also covered pages, settings and reply practice without starting capture. The sidebar's native accessibility bounds and actions were verified. Native screen-selection tests use the connected display topology; a second physical monitor and a headset remain separate field tests.
+
+## Earlier 0.7.1 results
 
 The 0.7.1 patch replaces bright native control surfaces with application-owned dark painting. The closed and open selectors, settings tab headers and page frame, numeric buttons, field edges and native scrollbar rectangles are checked using actual rendered Windows controls. Native selection, numeric changes, text selection, tab navigation and scrollbar ranges remain under Windows control. Scrollbar appearance uses the existing scrollbars rather than a separate history or scrolling model.
 

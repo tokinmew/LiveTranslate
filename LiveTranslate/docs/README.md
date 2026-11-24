@@ -1,4 +1,6 @@
-# LiveTranslate 0.7.1 for Windows 11 x64
+# LiveTranslate 0.7.2 for Windows 11 x64
+
+The 0.7.2 patch fixes the disposed capture-menu error when selecting a screen or drawing an area. Canceling a drawn area retains the previous capture target. Closing the dashboard also closes its selector safely. Minimized Settings restores on reopening, and a manual screen read gets the correct floating-caption status. The capture popup uses the dark app theme.
 
 The 0.7.1 patch gives selectors, settings tabs, input borders, numeric buttons and scrollbars a consistent dark surface. Focus remains visible, and the styling applies within LiveTranslate. Windows theme preferences are unchanged.
 

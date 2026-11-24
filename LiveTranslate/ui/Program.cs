@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.7.1.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.7.1.0")]
+[assembly: System.Reflection.AssemblyVersion("0.7.2.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.7.2.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -159,6 +159,9 @@ namespace LiveTranslate
         private Form settingsForm;
         private TabControl settingsTabs;
         private Rectangle? selectedRegion;
+        private readonly ContextMenuStrip captureTargetMenu = new ContextMenuStrip();
+        private bool captureTargetActionPending;
+        private RegionPicker activeRegionPicker;
         public MainForm()
         {
             Text = "LiveTranslate";
@@ -180,6 +183,16 @@ namespace LiveTranslate
             Size = new Size(1280, 820);
             MinimumSize = new Size(900, 620);
             WindowTheme.Apply(this);
+            Disposed += delegate
+            {
+                captureTargetMenu.Dispose();
+                RegionPicker picker = activeRegionPicker;
+                if (picker != null && !picker.IsDisposed)
+                {
+                    picker.DialogResult = DialogResult.Cancel;
+                    picker.Close();
+                }
+            };
             json.MaxJsonLength = 4 * 1024 * 1024;
             BindCaptionLayers();
             BuildSettings();
@@ -652,6 +665,7 @@ namespace LiveTranslate
 
         private void SelectRegion(object sender, EventArgs e)
         {
+            if (closing || IsDisposed || Disposing || selectingArea) return;
             selectingArea = true;
             StopScreen();
             CancelReadOnce();
@@ -661,28 +675,42 @@ namespace LiveTranslate
             try
             {
                 using (RegionPicker picker = new RegionPicker())
-                    if (picker.ShowDialog() == DialogResult.OK)
+                {
+                    activeRegionPicker = picker;
+                    if (picker.ShowDialog(this) == DialogResult.OK && !closing && !IsDisposed && !Disposing)
                     {
                         selectedRegion = picker.Selection;
                         targetDisplay = null;
                         UpdateRegionLabel();
                     }
+                }
             }
             finally
             {
-                Show();
-                TopMost = restoreTop;
+                activeRegionPicker = null;
                 selectingArea = false;
+                if (!closing && !IsDisposed && !Disposing)
+                {
+                    Show();
+                    TopMost = restoreTop;
+                    TryStartScreen();
+                    UpdateControls();
+                }
             }
-
-            TryStartScreen();
-            UpdateControls();
         }
 
         private void ChooseTarget(object sender, EventArgs e)
         {
-            ContextMenuStrip menu = new ContextMenuStrip();
-            ToolStripMenuItem primary = new ToolStripMenuItem("Primary display", null, delegate { SelectDisplay(null); });
+            if (closing || IsDisposed || Disposing || selectingArea || captureTargetActionPending) return;
+            ContextMenuStrip menu = captureTargetMenu;
+            if (menu.Visible) { menu.Close(); return; }
+            MenuTheme.Apply(menu);
+            ToolStripItem[] previous = new ToolStripItem[menu.Items.Count];
+            menu.Items.CopyTo(previous, 0);
+            menu.Items.Clear();
+            foreach (ToolStripItem item in previous) item.Dispose();
+            ToolStripMenuItem primary = new ToolStripMenuItem("Primary display", null,
+                delegate { QueueCaptureTarget(delegate { SelectDisplay(null); }); });
             primary.Checked = !selectedRegion.HasValue && targetDisplay == null;
             menu.Items.Add(primary);
             int number = 0;
@@ -693,14 +721,35 @@ namespace LiveTranslate
                     continue;
                 string device = screen.DeviceName;
                 string title = String.Format("Display {0} ({1} × {2})", number, screen.Bounds.Width, screen.Bounds.Height);
-                ToolStripMenuItem item = new ToolStripMenuItem(title, null, delegate { SelectDisplay(device); });
+                ToolStripMenuItem item = new ToolStripMenuItem(title, null,
+                    delegate { QueueCaptureTarget(delegate { SelectDisplay(device); }); });
                 item.Checked = !selectedRegion.HasValue && targetDisplay == device;
                 menu.Items.Add(item);
             }
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Draw an area…", null, SelectRegion);
-            menu.Closed += delegate { menu.Dispose(); };
+            menu.Items.Add("Draw an area…", null,
+                delegate { QueueCaptureTarget(delegate { SelectRegion(null, EventArgs.Empty); }); });
             menu.Show(selectArea, new Point(0, selectArea.Height));
+        }
+
+        private void QueueCaptureTarget(Action action)
+        {
+            if (closing || IsDisposed || Disposing || !IsHandleCreated || selectingArea || captureTargetActionPending) return;
+            captureTargetActionPending = true;
+            try
+            {
+                // A native menu may still be dismissing its clicked item. Let
+                // that stack unwind before changing capture or opening a modal.
+                BeginInvoke(new MethodInvoker(delegate
+                {
+                    try
+                    {
+                        if (!closing && !IsDisposed && !Disposing && !selectingArea) action();
+                    }
+                    finally { captureTargetActionPending = false; }
+                }));
+            }
+            catch (InvalidOperationException) { captureTargetActionPending = false; }
         }
 
         private void SelectDisplay(string device)

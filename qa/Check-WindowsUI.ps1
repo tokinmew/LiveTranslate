@@ -43,7 +43,7 @@ Run-Check 'OverlayReadabilityChecks' $out
 Compile 'VrCardControlsChecks' (@('/target:exe','/main:LiveTranslate.VrCardControlsChecks',
                                   (Join-Path $PSScriptRoot 'overlays/VrCardControlsChecks.cs')) + $sources)
 Run-Check 'VrCardControlsChecks' $out
-foreach ($name in @('ThemedInputChecks','QuietChromeChecks','QuietThemeCheck')) {
+foreach ($name in @('ThemedInputChecks','QuietChromeChecks','QuietThemeCheck','CaptureTargetMenuCheck','UiFlowCheck')) {
     Compile $name (@('/target:exe',('/main:' + $name),(Join-Path $PSScriptRoot ('ui/' + $name + '.cs'))) + $sources)
     Run-Check $name $out
 }

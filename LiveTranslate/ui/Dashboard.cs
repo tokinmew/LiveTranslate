@@ -370,8 +370,10 @@ namespace LiveTranslate
 
         private void OpenSettings()
         {
-            if (settingsForm == null || settingsForm.IsDisposed)
+            if (closing || IsDisposed || Disposing || settingsForm == null || settingsForm.IsDisposed)
                 return;
+            if (settingsForm.WindowState == FormWindowState.Minimized)
+                settingsForm.WindowState = FormWindowState.Normal;
             if (!settingsForm.Visible)
             {
                 RememberProcessingSettings();

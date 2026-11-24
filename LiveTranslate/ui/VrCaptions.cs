@@ -46,7 +46,7 @@ namespace LiveTranslate
 
         private string VrCaptureInput()
         {
-            if (SessionPaused) return "Translation paused";
+            if (SessionPaused) return oneShotPending ? "Reading selected screen area" : "Translation paused";
             if (audioWanted)
             {
                 Choice device = devices.SelectedItem as Choice;
