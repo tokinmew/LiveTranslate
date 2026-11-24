@@ -9,7 +9,7 @@ namespace LiveTranslate
     {
         private bool ready;
         internal bool Ready { set { if (ready != value) { ready = value; Invalidate(); } } }
-        internal EngineIndicator() { BackColor = Color.Transparent; AccessibleRole = AccessibleRole.StatusBar; }
+        internal EngineIndicator() { BackColor = Color.Transparent; ForeColor = WindowTheme.Ink; AccessibleRole = AccessibleRole.StatusBar; }
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -20,11 +20,13 @@ namespace LiveTranslate
             Rectangle pill = new Rectangle(Width-w, (Height-h)/2, w-1, h);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             using (GraphicsPath path = ModernGeometry.Rounded(pill, h/2F))
-            using (Brush brush = new SolidBrush(ready ? Color.FromArgb(208,235,222) : Color.FromArgb(242,232,208))) g.FillPath(brush,path);
-            using (Brush dot = new SolidBrush(ready ? Color.FromArgb(15,115,85) : Color.FromArgb(148,99,22)))
+            using (Brush brush = new SolidBrush(WindowTheme.HighContrast ? SystemColors.Window : ready ? Color.FromArgb(15,48,43) : Color.FromArgb(42,35,30)))
+            using (Pen edge = new Pen(WindowTheme.HighContrast ? SystemColors.WindowText : ready ? Color.FromArgb(34,94,80) : Color.FromArgb(84,69,48)))
+            { g.FillPath(brush,path); g.DrawPath(edge,path); }
+            using (Brush dot = new SolidBrush(ready ? WindowTheme.Accent : WindowTheme.Warning))
                 g.FillEllipse(dot, pill.Left + 9*s, pill.Top + (pill.Height - 6*s)/2, 6*s, 6*s);
             pill.X += (int)(19*s); pill.Width -= (int)(24*s);
-            TextRenderer.DrawText(g, Text, Font, pill, ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(g, Text, Font, pill, WindowTheme.HighContrast ? SystemColors.WindowText : ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis);
         }
     }
 
@@ -32,48 +34,51 @@ namespace LiveTranslate
     {
         private string state;
         internal void SetState(string value) { if (state != value) { state = value; Invalidate(); } }
-        internal AvailabilityIndicator() { BackColor = Color.Transparent; }
+        internal AvailabilityIndicator() { BackColor = Color.Transparent; ForeColor = WindowTheme.Muted; }
         protected override void OnPaint(PaintEventArgs e)
         {
             float s = e.Graphics.DpiX / 96F;
-            Color dot = state == "Ready" ? Color.FromArgb(116,225,194) : state == "Set up" ? Color.FromArgb(234,189,120) : Color.FromArgb(148,174,168);
+            Color dot = state == "Ready" ? WindowTheme.Accent : state == "Set up" ? WindowTheme.Warning : WindowTheme.Disabled;
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (Brush point = new SolidBrush(dot)) e.Graphics.FillEllipse(point, 1, (Height - 5*s)/2, 5*s, 5*s);
             Rectangle text = new Rectangle((int)(10*s), 0, Math.Max(1, Width - (int)(11*s)), Height);
-            TextRenderer.DrawText(e.Graphics, Text, Font, text, ForeColor, TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+            TextRenderer.DrawText(e.Graphics, Text, Font, text, WindowTheme.HighContrast ? SystemColors.WindowText : ForeColor, TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
         }
     }
 
     // Retain the native CheckBox keyboard, accessibility and checked-state behavior.
     internal sealed class CaptionOption : CheckBox
     {
-        internal CaptionOption() { Cursor = Cursors.Hand; SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true); }
+        internal CaptionOption() { Cursor = Cursors.Hand; BackColor = WindowTheme.Card; ForeColor = WindowTheme.Muted; SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true); }
         protected override void OnPaint(PaintEventArgs e)
         {
             Graphics g = e.Graphics;
             float s = g.DpiX / 96F;
-            g.Clear(BackColor);
+            if (BackColor.A == 255) g.Clear(WindowTheme.HighContrast ? SystemColors.Window : BackColor);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             int size = (int)Math.Ceiling(16*s);
             int wordWidth = TextRenderer.MeasureText(g, Text, Font).Width;
             int x = Anchor == AnchorStyles.Right ? Math.Max(2, Width - wordWidth - size - (int)(6*s)) : 2;
             int y = (Height - size)/2;
+            Color boxColor = !Enabled ? WindowTheme.Disabled : WindowTheme.Accent;
             using (GraphicsPath check = ModernGeometry.Rounded(new RectangleF(x,y,size,size),4*s))
-            using (Brush fill = new SolidBrush(Checked ? Color.FromArgb(17,107,96) : BackColor))
-            using (Pen outline = new Pen(Checked ? Color.FromArgb(17,107,96) : Color.FromArgb(105,130,123))) {
+            using (Brush fill = new SolidBrush(Checked ? boxColor : WindowTheme.HighContrast ? SystemColors.Window : WindowTheme.Field))
+            using (Pen outline = new Pen(Checked ? boxColor : Enabled ? WindowTheme.Muted : WindowTheme.Disabled)) {
                 g.FillPath(fill,check); g.DrawPath(outline,check);
             }
-            if (Checked) using (Pen line = new Pen(Color.White,1.8F*s) { LineJoin=LineJoin.Round, StartCap=LineCap.Round, EndCap=LineCap.Round })
+            if (Checked) using (Pen line = new Pen(WindowTheme.AccentInk,1.8F*s) { LineJoin=LineJoin.Round, StartCap=LineCap.Round, EndCap=LineCap.Round })
                 g.DrawLines(line,new[] { new PointF(x+3.5F*s,y+8*s), new PointF(x+6.5F*s,y+11*s), new PointF(x+12.5F*s,y+5*s) });
             int left = x+size+(int)(5*s);
-            TextRenderer.DrawText(g, Text, Font, new Rectangle(left,0,Math.Max(1,Width-left),Height), ForeColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
-            if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(g, Rectangle.Inflate(ClientRectangle,-1,-1), ForeColor, BackColor);
+            Color textColor = !Enabled ? WindowTheme.Disabled : WindowTheme.HighContrast ? SystemColors.WindowText : ForeColor;
+            TextRenderer.DrawText(g, Text, Font, new Rectangle(left,0,Math.Max(1,Width-left),Height), textColor, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+            if (Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(g, Rectangle.Inflate(ClientRectangle,-1,-1), WindowTheme.Ink, WindowTheme.HighContrast ? SystemColors.Window : BackColor);
         }
     }
 
     internal sealed class ComposerEntry : TextBox
     {
         private bool sizingScroll;
+        internal ComposerEntry() { BackColor = WindowTheme.Field; ForeColor = WindowTheme.Ink; }
         private void FitScrollBar()
         {
             if (!IsHandleCreated || sizingScroll || !Multiline || ClientSize.Height < 1) return;
@@ -91,14 +96,20 @@ namespace LiveTranslate
         }
         protected override void OnSizeChanged(EventArgs e) { base.OnSizeChanged(e); FitScrollBar(); }
         protected override void OnTextChanged(EventArgs e) { base.OnTextChanged(e); FitScrollBar(); }
-        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); FitScrollBar(); }
+        protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); WindowTheme.ApplyControl(this); FitScrollBar(); }
+        protected override void OnSystemColorsChanged(EventArgs e)
+        {
+            base.OnSystemColorsChanged(e);
+            BackColor = WindowTheme.Field; ForeColor = WindowTheme.Ink;
+            WindowTheme.ApplyControl(this); Invalidate();
+        }
         protected override void OnFontChanged(EventArgs e) { base.OnFontChanged(e); FitScrollBar(); }
         protected override void WndProc(ref Message m)
         {
             base.WndProc(ref m);
             if ((m.Msg != 0x000F && m.Msg != 0x0318) || TextLength != 0 || Focused || !IsHandleCreated) return;
             using (Graphics g = m.Msg == 0x0318 && m.WParam != IntPtr.Zero ? Graphics.FromHdc(m.WParam) : CreateGraphics())
-                TextRenderer.DrawText(g, "Type or paste text to translate…", Font, ClientRectangle, Color.FromArgb(88,111,103), TextFormatFlags.Top | TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
+                TextRenderer.DrawText(g, "Type or paste text to translate…", Font, ClientRectangle, WindowTheme.Muted, TextFormatFlags.Top | TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.WordBreak);
         }
     }
 
@@ -111,6 +122,7 @@ namespace LiveTranslate
             this.kind = kind;
             SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Transparent;
+            ForeColor = WindowTheme.Accent;
             TabStop = false;
             AccessibleRole = AccessibleRole.None;
         }
@@ -122,12 +134,13 @@ namespace LiveTranslate
             float scale = Math.Min(Width, Height) / 32F;
             if (scale <= 0) return;
             g.ScaleTransform(scale, scale);
-            Color lavender = Color.FromArgb(116,225,194);
+            Color lavender = WindowTheme.HighContrast ? SystemColors.WindowText : ForeColor;
             if (kind == Kind.Brand)
             {
                 using (GraphicsPath box = ModernGeometry.Rounded(new RectangleF(0.5F, 0.5F, 31F, 31F), 8F))
-                using (Brush fill = new SolidBrush(Color.FromArgb(17, 107, 96))) g.FillPath(fill, box);
-                using (Pen line = new Pen(Color.FromArgb(213,255,237),1.9F) { StartCap=LineCap.Round, EndCap=LineCap.Round, LineJoin=LineJoin.Round }) {
+                using (Brush fill = new SolidBrush(WindowTheme.HighContrast ? SystemColors.Window : Color.FromArgb(15,48,43)))
+                using (Pen edge = new Pen(lavender,1.2F)) { g.FillPath(fill, box); g.DrawPath(edge,box); }
+                using (Pen line = new Pen(lavender,1.9F) { StartCap=LineCap.Round, EndCap=LineCap.Round, LineJoin=LineJoin.Round }) {
                     g.DrawLines(line,new[] { new Point(6,20), new Point(6,11), new Point(10,11) });
                     g.DrawLines(line,new[] { new Point(26,12), new Point(26,21), new Point(22,21) });
                     g.DrawLine(line,11,14,11,18); g.DrawLine(line,15,8,15,24); g.DrawLine(line,19,11,19,21); g.DrawLine(line,22,14,22,17);
@@ -154,6 +167,98 @@ namespace LiveTranslate
         }
     }
 
+    // These are decorative paths; actionable parents retain their native button
+    // keyboard and accessibility semantics. No icon fonts or external assets.
+    internal sealed class WorkspaceGlyph : Control
+    {
+        internal enum Kind { Brand, Live, History, Audio, Settings, Pause, Stop, Save, Pin, Expand, Screen }
+        private Kind symbol;
+        internal Kind Symbol { get { return symbol; } set { if (symbol != value) { symbol = value; Invalidate(); } } }
+        internal WorkspaceGlyph()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            ForeColor = WindowTheme.Muted;
+            Size = new Size(24, 24);
+            TabStop = false;
+            AccessibleRole = AccessibleRole.None;
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Draw(e.Graphics, ClientRectangle, symbol, Enabled ? ForeColor : WindowTheme.Disabled);
+        }
+        internal static void Draw(Graphics graphics, RectangleF bounds, Kind kind, Color color)
+        {
+            float size = Math.Min(bounds.Width, bounds.Height);
+            if (size < 2F) return;
+            GraphicsState state = graphics.Save();
+            try
+            {
+                graphics.TranslateTransform(bounds.Left + (bounds.Width-size)/2F, bounds.Top + (bounds.Height-size)/2F);
+                graphics.ScaleTransform(size/24F,size/24F);
+                graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                if (WindowTheme.HighContrast) color = SystemColors.WindowText;
+                using (Pen pen = new Pen(color,1.65F) { StartCap=LineCap.Round, EndCap=LineCap.Round, LineJoin=LineJoin.Round })
+                using (Brush fill = new SolidBrush(color))
+                {
+                    switch (kind)
+                    {
+                        case Kind.Brand:
+                            graphics.DrawLines(pen,new[] { new PointF(5,5),new PointF(2,5),new PointF(2,19),new PointF(5,19) });
+                            graphics.DrawLines(pen,new[] { new PointF(19,5),new PointF(22,5),new PointF(22,19),new PointF(19,19) });
+                            for (int i=0;i<5;i++) { float h=new[] { 5F,11F,17F,9F,5F }[i]; graphics.DrawLine(pen,6+i*3,12-h/2F,6+i*3,12+h/2F); }
+                            break;
+                        case Kind.Live:
+                        case Kind.Screen:
+                            using (GraphicsPath box = ModernGeometry.Rounded(new RectangleF(3,4,18,13),2F)) graphics.DrawPath(pen,box);
+                            graphics.DrawLine(pen,12,17,12,21); graphics.DrawLine(pen,8,21,16,21);
+                            if (kind == Kind.Live) graphics.DrawLines(pen,new[] { new PointF(6,11),new PointF(9,11),new PointF(11,8),new PointF(13,13),new PointF(15,10),new PointF(18,10) });
+                            break;
+                        case Kind.History:
+                            graphics.DrawArc(pen,4,4,16,16,-100,300);
+                            graphics.DrawLines(pen,new[] { new PointF(3,4),new PointF(3,9),new PointF(8,9) });
+                            graphics.DrawLines(pen,new[] { new PointF(12,7),new PointF(12,12),new PointF(15.5F,14) });
+                            break;
+                        case Kind.Audio:
+                            for (int i=0;i<5;i++) { float h=new[] { 5F,11F,18F,10F,5F }[i]; graphics.DrawLine(pen,4+i*4,12-h/2F,4+i*4,12+h/2F); }
+                            break;
+                        case Kind.Settings:
+                            for (int i=0;i<3;i++)
+                            {
+                                float y=6+i*6, x=i==1?15:8;
+                                graphics.DrawLine(pen,3,y,x-2.5F,y); graphics.DrawEllipse(pen,x-2.5F,y-2.5F,5,5); graphics.DrawLine(pen,x+2.5F,y,21,y);
+                            }
+                            break;
+                        case Kind.Pause:
+                            using (GraphicsPath a=ModernGeometry.Rounded(new RectangleF(6,5,4,14),1F)) graphics.FillPath(fill,a);
+                            using (GraphicsPath b=ModernGeometry.Rounded(new RectangleF(14,5,4,14),1F)) graphics.FillPath(fill,b);
+                            break;
+                        case Kind.Stop:
+                            using (GraphicsPath box=ModernGeometry.Rounded(new RectangleF(5,5,14,14),2F)) graphics.FillPath(fill,box);
+                            break;
+                        case Kind.Save:
+                            graphics.DrawLines(pen,new[] { new PointF(4,3),new PointF(17,3),new PointF(21,7),new PointF(21,21),new PointF(3,21),new PointF(3,3),new PointF(4,3) });
+                            graphics.DrawLines(pen,new[] { new PointF(7,3),new PointF(7,9),new PointF(16,9),new PointF(16,3) });
+                            graphics.DrawLines(pen,new[] { new PointF(7,21),new PointF(7,14),new PointF(17,14),new PointF(17,21) });
+                            break;
+                        case Kind.Pin:
+                            graphics.DrawLines(pen,new[] { new PointF(9,3),new PointF(17,3),new PointF(16,10),new PointF(19,14),new PointF(6,14),new PointF(9,10),new PointF(9,3) });
+                            graphics.DrawLine(pen,12.5F,14,12.5F,21);
+                            break;
+                        case Kind.Expand:
+                            graphics.DrawLines(pen,new[] { new PointF(4,9),new PointF(4,4),new PointF(9,4) });
+                            graphics.DrawLines(pen,new[] { new PointF(15,4),new PointF(20,4),new PointF(20,9) });
+                            graphics.DrawLines(pen,new[] { new PointF(20,15),new PointF(20,20),new PointF(15,20) });
+                            graphics.DrawLines(pen,new[] { new PointF(9,20),new PointF(4,20),new PointF(4,15) });
+                            break;
+                    }
+                }
+            }
+            finally { graphics.Restore(state); }
+        }
+    }
+
     internal sealed class EmptyTranscript : Label
     {
         private readonly Font heading = new Font("Segoe UI", 14F, FontStyle.Bold);
@@ -167,11 +272,13 @@ namespace LiveTranslate
         internal EmptyTranscript(EventHandler setup)
         {
             AccessibleDescription = hint;
+            BackColor = WindowTheme.Card;
+            ForeColor = WindowTheme.Ink;
             action.Text = "Set up language files";
             action.Size = new Size(158, 32);
             action.Font = new Font("Segoe UI", 9F);
-            action.BackColor = Color.FromArgb(17, 107, 96);
-            action.ForeColor = Color.White;
+            action.BackColor = WindowTheme.Accent;
+            action.ForeColor = WindowTheme.AccentInk;
             action.FlatAppearance.BorderColor = action.BackColor;
             action.Click += setup;
             action.Visible = false;
@@ -233,31 +340,31 @@ namespace LiveTranslate
             TextRenderer.DrawText(g, Text, heading, new Rectangle(0, top, Width, titleHeight), ForeColor,
                 TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
             TextRenderer.DrawText(g, hint, detail, new Rectangle(12, top + titleHeight, textWidth, hintHeight + 2),
-                Color.FromArgb(74, 99, 101), TextFormatFlags.HorizontalCenter | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                WindowTheme.Muted, TextFormatFlags.HorizontalCenter | TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
         }
 
         private static void DrawConversation(Graphics g)
         {
-            Color dark = Color.FromArgb(23, 65, 62);
-            Color mint = Color.FromArgb(119, 225, 191);
-            using (Brush glow = new SolidBrush(Color.FromArgb(237, 248, 242)))
+            Color dark = WindowTheme.HighContrast ? SystemColors.Window : Color.FromArgb(24, 45, 48);
+            Color mint = WindowTheme.Accent;
+            using (Brush glow = new SolidBrush(WindowTheme.HighContrast ? SystemColors.Window : Color.FromArgb(14, 35, 38)))
                 g.FillEllipse(glow, 14, 5, 171, 88);
-            using (Brush stipple = new SolidBrush(Color.FromArgb(163, 207, 185)))
+            using (Brush stipple = new SolidBrush(WindowTheme.Border))
                 for (int x = 0; x < 4; x++)
                     for (int y = 0; y < 3; y++)
                         g.FillEllipse(stipple, 150 + x * 6, 11 + y * 6, 1.8F, 1.8F);
 
             using (GraphicsPath screen = ModernGeometry.Rounded(new RectangleF(33, 14, 103, 65), 8))
-            using (Brush face = new SolidBrush(Color.White))
-            using (Pen edge = new Pen(Color.FromArgb(125, 162, 148), 1.5F))
+            using (Brush face = new SolidBrush(WindowTheme.Field))
+            using (Pen edge = new Pen(WindowTheme.Border, 1.5F))
             {
                 g.FillPath(face, screen);
                 g.DrawPath(edge, screen);
                 g.DrawLine(edge, 34, 29, 135, 29);
             }
-            using (Brush dot = new SolidBrush(Color.FromArgb(126, 167, 148)))
+            using (Brush dot = new SolidBrush(WindowTheme.Muted))
                 for (int i = 0; i < 3; i++) g.FillEllipse(dot, 41 + i * 5, 20, 2.5F, 2.5F);
-            using (Pen wave = new Pen(Color.FromArgb(28, 121, 101), 3.2F) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (Pen wave = new Pen(mint, 3.2F) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             {
                 int[] bars = { 4, 10, 18, 9, 24, 15, 7, 13, 4 };
                 for (int i = 0; i < bars.Length; i++)
@@ -269,7 +376,7 @@ namespace LiveTranslate
                 g.FillPath(fill, caption);
                 g.FillPolygon(fill, new[] { new PointF(144, 81), new PointF(155, 92), new PointF(155, 81) });
             }
-            using (Pen line = new Pen(Color.White, 2.6F) { StartCap = LineCap.Round, EndCap = LineCap.Round })
+            using (Pen line = new Pen(WindowTheme.Ink, 2.6F) { StartCap = LineCap.Round, EndCap = LineCap.Round })
             {
                 g.DrawLine(line, 102, 60, 151, 60);
                 line.Color = mint;

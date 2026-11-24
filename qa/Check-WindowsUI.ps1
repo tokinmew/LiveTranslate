@@ -29,7 +29,18 @@ Compile 'CheckSettings' (@('/target:exe','/main:CheckSettings',(Join-Path $PSScr
 Run-Check 'CheckSettings' $out
 Compile 'DashboardCheck' (@('/target:exe','/main:DashboardCheck',(Join-Path $PSScriptRoot 'ui/DashboardCheck.cs')) + $sources)
 Run-Check 'DashboardCheck' $out
+Compile 'SessionWorkspaceCheck' (@('/target:exe','/main:SessionWorkspaceCheck',(Join-Path $PSScriptRoot 'ui/SessionWorkspaceCheck.cs')) + $sources)
+Run-Check 'SessionWorkspaceCheck' $out
+Compile 'CheckUpdatesUI' (@('/target:exe','/main:CheckUpdatesUI',(Join-Path $PSScriptRoot 'CheckUpdatesUI.cs')) + $sources)
+& (Join-Path $out 'CheckUpdatesUI.exe')
+if ($LASTEXITCODE) { throw 'CheckUpdatesUI failed.' }
+Compile 'CheckReleaseHistory' (@('/target:exe','/main:CheckReleaseHistory',(Join-Path $PSScriptRoot 'CheckReleaseHistory.cs')) + $sources)
+& (Join-Path $out 'CheckReleaseHistory.exe')
+if ($LASTEXITCODE) { throw 'CheckReleaseHistory failed.' }
 Compile 'OverlayReadabilityChecks' (@('/target:exe','/main:LiveTranslate.OverlayReadabilityChecks',
                                       (Join-Path $PSScriptRoot 'overlays/OverlayReadabilityChecks.cs')) + $sources)
 Run-Check 'OverlayReadabilityChecks' $out
+Compile 'VrCardControlsChecks' (@('/target:exe','/main:LiveTranslate.VrCardControlsChecks',
+                                  (Join-Path $PSScriptRoot 'overlays/VrCardControlsChecks.cs')) + $sources)
+Run-Check 'VrCardControlsChecks' $out
 Write-Output "Synthetic Windows UI checks passed. Rendered fixtures are in $out"

@@ -52,7 +52,7 @@ namespace LiveTranslate
         {
             var page = SettingsPage("Updates");
             var layout = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
-                ColumnCount = 1, Margin = Padding.Empty, BackColor = SystemColors.Window, ForeColor = paperInk };
+                ColumnCount = 1, Margin = Padding.Empty, BackColor = surface, ForeColor = paperInk };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             updateSourceLabel = new Label { Text = "GitHub Releases · latest stable release", AutoSize = true,
                 Font = new Font(Font, FontStyle.Bold), Margin = new Padding(0, 0, 0, 6) };

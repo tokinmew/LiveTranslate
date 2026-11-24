@@ -25,7 +25,7 @@ namespace LiveTranslate
     internal sealed class ModernSwitch : Control
     {
         private bool isChecked;
-        private Color accent = Color.FromArgb(103, 219, 190);
+        private Color accent = WindowTheme.Accent;
         public event EventHandler CheckedChanged;
 
         public ModernSwitch()
@@ -93,20 +93,25 @@ namespace LiveTranslate
             if (Width < 4 || Height < 4) return;
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             RectangleF track = new RectangleF(1F, 1F, Width - 2F, Height - 2F);
-            Color trackColor = Enabled ? (Checked ? accent : Color.FromArgb(77, 102, 103)) : Color.FromArgb(60, 82, 83);
+            bool contrast = WindowTheme.HighContrast;
+            Color trackColor = contrast ? (Checked ? SystemColors.Highlight : SystemColors.Control) :
+                Enabled ? (Checked ? accent : Color.FromArgb(55, 67, 84)) : Color.FromArgb(35, 44, 59);
             using (GraphicsPath path = ModernGeometry.Rounded(track, track.Height / 2F))
-            using (Brush brush = new SolidBrush(trackColor)) e.Graphics.FillPath(brush, path);
+            using (Brush brush = new SolidBrush(trackColor))
+            using (Pen edge = new Pen(contrast ? SystemColors.WindowText : trackColor))
+            { e.Graphics.FillPath(brush, path); e.Graphics.DrawPath(edge, path); }
             float inset = Math.Max(3F, Height * 0.12F);
             float diameter = Math.Max(4F, Height - inset * 2F);
             float left = Checked ? Width - inset - diameter : inset;
             using (Brush shadow = new SolidBrush(Color.FromArgb(30, 0, 0, 0))) e.Graphics.FillEllipse(shadow, left, inset + 1F, diameter, diameter);
-            Color thumb = !Enabled ? Color.FromArgb(157, 179, 176) : Checked ? Color.FromArgb(17, 65, 60) : Color.White;
+            Color thumb = !Enabled ? WindowTheme.Disabled : contrast ? (Checked ? SystemColors.HighlightText : SystemColors.WindowText) :
+                Checked ? WindowTheme.AccentInk : WindowTheme.Ink;
             using (Brush knob = new SolidBrush(thumb)) e.Graphics.FillEllipse(knob, left, inset, diameter, diameter);
             if (Focused && ShowFocusCues)
             {
                 RectangleF focus = new RectangleF(0.7F, 0.7F, Width - 1.4F, Height - 1.4F);
                 using (GraphicsPath path = ModernGeometry.Rounded(focus, focus.Height / 2F))
-                using (Pen pen = new Pen(Color.FromArgb(231, 244, 250), 1F)) { pen.DashStyle = DashStyle.Dot; e.Graphics.DrawPath(pen, path); }
+                using (Pen pen = new Pen(WindowTheme.Ink, 1F)) { pen.DashStyle = DashStyle.Dot; e.Graphics.DrawPath(pen, path); }
             }
         }
 
@@ -134,8 +139,8 @@ namespace LiveTranslate
 
     internal sealed class ModernCard : Panel
     {
-        private Color fill = Color.FromArgb(25, 39, 60);
-        private Color border = Color.FromArgb(43, 60, 81);
+        private Color fill = WindowTheme.Card;
+        private Color border = WindowTheme.Border;
         private int radius = 14;
         public ModernCard()
         {
@@ -154,7 +159,7 @@ namespace LiveTranslate
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             float scale = e.Graphics.DpiX / 96F;
             using (GraphicsPath path = ModernGeometry.Rounded(new RectangleF(0.5F, 0.5F, Width - 1F, Height - 1F), radius * scale))
-            using (Brush brush = new SolidBrush(fill)) e.Graphics.FillPath(brush, path);
+            using (Brush brush = new SolidBrush(WindowTheme.HighContrast ? SystemColors.Window : fill)) e.Graphics.FillPath(brush, path);
         }
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -163,23 +168,27 @@ namespace LiveTranslate
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             float scale = e.Graphics.DpiX / 96F;
             using (GraphicsPath path = ModernGeometry.Rounded(new RectangleF(0.5F, 0.5F, Width - 1F, Height - 1F), radius * scale))
-            using (Pen pen = new Pen(border, 1F)) e.Graphics.DrawPath(pen, path);
+            using (Pen pen = new Pen(WindowTheme.HighContrast ? SystemColors.WindowText : border, 1F)) e.Graphics.DrawPath(pen, path);
         }
     }
 
-    internal enum ButtonSymbol { None, Headset, Settings, Arrow }
+    internal enum ButtonSymbol { None, Headset, Settings, Arrow, Brand, Live, History, Audio, Pause, Stop, Save, Pin, Expand, Screen }
 
     internal class ModernButton : Button
     {
         private bool hovered, pressed;
+        private ButtonSymbol symbol;
         public bool IsPicker { get; set; }
-        internal ButtonSymbol Symbol { get; set; }
+        internal ButtonSymbol Symbol { get { return symbol; } set { if (symbol != value) { symbol = value; Invalidate(); } } }
         public ModernButton()
         {
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             UseVisualStyleBackColor = false;
             Cursor = Cursors.Hand;
+            BackColor = WindowTheme.Field;
+            ForeColor = WindowTheme.Ink;
+            FlatAppearance.BorderColor = WindowTheme.Border;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         }
         protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); hovered = true; Invalidate(); }
@@ -189,24 +198,24 @@ namespace LiveTranslate
         protected override void OnMouseCaptureChanged(EventArgs e) { base.OnMouseCaptureChanged(e); if (!Capture) pressed = false; Invalidate(); }
         private Color Surround()
         {
-            for (Control owner = Parent; owner != null; owner = owner.Parent)
-            {
-                ModernCard card = owner as ModernCard;
-                if (card != null) return card.FillColor;
-                if (owner.BackColor.A == 255) return owner.BackColor;
-            }
-            return SystemColors.Control;
+            return WindowTheme.Surround(this);
         }
         protected override void OnPaint(PaintEventArgs e)
         {
             if (Width < 3 || Height < 3) return;
             Color surround = Surround(), fill = BackColor, text = ForeColor, outline = FlatAppearance.BorderColor;
-            if (!Enabled)
+            if (WindowTheme.HighContrast)
             {
-                bool light = surround.GetBrightness() > .6F;
-                fill = light ? Color.FromArgb(241, 245, 243) : Color.FromArgb(48, 70, 71);
-                text = light ? Color.FromArgb(95, 112, 108) : Color.FromArgb(183, 200, 194);
-                outline = light ? Color.FromArgb(217, 226, 221) : Color.FromArgb(73, 95, 94);
+                surround = SystemColors.Window;
+                fill = pressed ? SystemColors.Highlight : SystemColors.Window;
+                text = !Enabled ? SystemColors.GrayText : pressed ? SystemColors.HighlightText : SystemColors.WindowText;
+                outline = !Enabled ? SystemColors.GrayText : SystemColors.WindowText;
+            }
+            else if (!Enabled)
+            {
+                fill = Color.FromArgb(27, 35, 48);
+                text = WindowTheme.Disabled;
+                outline = Color.FromArgb(44, 55, 72);
             }
             else if (hovered || pressed)
             {
@@ -252,14 +261,14 @@ namespace LiveTranslate
                             using (GraphicsPath headset = ModernGeometry.Rounded(new RectangleF(1,4,14,9), 3)) e.Graphics.DrawPath(pen, headset);
                             e.Graphics.DrawLine(pen, 3, 5, 13, 5);
                             e.Graphics.DrawLines(pen, new[] { new Point(6,12), new Point(8,10), new Point(10,12) });
-                        } else {
+                        } else if (Symbol == ButtonSymbol.Settings) {
                             for (int i = 0; i < 3; i++) {
                                 int x = i == 1 ? 9 : 4, y = 3 + 5 * i;
                                 e.Graphics.DrawLine(pen, 1, y, x - 2, y);
                                 e.Graphics.DrawEllipse(pen, x - 1, y - 1.5F, 3, 3);
                                 e.Graphics.DrawLine(pen, x + 3, y, 15, y);
                             }
-                        }
+                        } else WorkspaceGlyph.Draw(e.Graphics, new RectangleF(0,0,16,16), GlyphKind(Symbol), text);
                     }
                     e.Graphics.Restore(state);
                     bounds.X = start + icon + gap;
@@ -272,8 +281,25 @@ namespace LiveTranslate
             {
                 float inset = 3.5F * scale;
                 using (GraphicsPath focus = ModernGeometry.Rounded(new RectangleF(inset, inset, Width - inset * 2, Height - inset * 2), 3 * scale))
-                using (Pen line = new Pen(fill.GetBrightness() < .5F ? Color.FromArgb(162,240,213) : Color.FromArgb(18,99,85), 1.4F*scale))
+                using (Pen line = new Pen(WindowTheme.HighContrast ? SystemColors.WindowText : fill.GetBrightness() < .5F ? WindowTheme.Accent : WindowTheme.AccentInk, 1.4F*scale))
                     e.Graphics.DrawPath(line,focus);
+            }
+        }
+
+        private static WorkspaceGlyph.Kind GlyphKind(ButtonSymbol value)
+        {
+            switch (value)
+            {
+                case ButtonSymbol.Brand: return WorkspaceGlyph.Kind.Brand;
+                case ButtonSymbol.History: return WorkspaceGlyph.Kind.History;
+                case ButtonSymbol.Audio: return WorkspaceGlyph.Kind.Audio;
+                case ButtonSymbol.Pause: return WorkspaceGlyph.Kind.Pause;
+                case ButtonSymbol.Stop: return WorkspaceGlyph.Kind.Stop;
+                case ButtonSymbol.Save: return WorkspaceGlyph.Kind.Save;
+                case ButtonSymbol.Pin: return WorkspaceGlyph.Kind.Pin;
+                case ButtonSymbol.Expand: return WorkspaceGlyph.Kind.Expand;
+                case ButtonSymbol.Screen: return WorkspaceGlyph.Kind.Screen;
+                default: return WorkspaceGlyph.Kind.Live;
             }
         }
     }

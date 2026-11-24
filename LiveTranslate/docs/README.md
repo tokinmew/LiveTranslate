@@ -1,4 +1,14 @@
-# LiveTranslate 0.6.9 for Windows 11 x64
+# LiveTranslate 0.7.0 for Windows 11 x64
+
+## The new workspace
+
+Use the sidebar to move between **Live session**, **Session history**, **Audio setup**, and **Settings**. Navigation keeps your current capture session and the same transcript. The dark interface uses mint controls and purple source text.
+
+**Audio setup** selects the actual Windows input and source language; translations currently target English. **Live session** also keeps screen watching, capture area, one-shot reading, pasted text, and reply practice available. **Pause translation** remembers the active inputs so they can resume; **End session** stops capture while keeping the transcript. **Save transcript** exports only when you choose a file. History is the current app session's newest 180 captions, not an automatic recording archive.
+
+**Open captions** opens a separate Windows caption window with original text, translation, pinning, pause, and dashboard controls. It can be selected through a PC headset's desktop view; headset pinning and VRChat readability depend on your runtime and still need a physical headset test.
+
+Open **Settings → Updates** for public GitHub updates. Major interface or feature releases start at 0.x.0; fixes for 0.7 use 0.7.1, 0.7.2, and so on.
 
 Open **LiveTranslate** from the Windows Start menu or double-click **LiveTranslate.exe** in the application folder. The installed folder groups maintenance commands in **scripts**, model and dependency configuration in **config**, and guides and notices in **docs**. Models, runtime files and language packs continue to use their own folders.
 

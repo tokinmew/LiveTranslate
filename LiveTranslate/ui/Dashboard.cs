@@ -97,7 +97,7 @@ namespace LiveTranslate
             {
                 Dock = DockStyle.Fill,
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                BackColor = Color.White,
+                BackColor = field,
                 ForeColor = paperInk,
                 FlatStyle = FlatStyle.Standard,
                 Margin = new Padding(0, 0, 0, 5)
@@ -126,12 +126,12 @@ namespace LiveTranslate
                 Width = 143,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = primary ? accent : field,
-                ForeColor = primary ? surface : ink,
+                ForeColor = primary ? WindowTheme.AccentInk : ink,
                 Margin = new Padding(0, 0, 7, 0),
                 UseVisualStyleBackColor = false
             };
             button.FlatAppearance.BorderSize = 1;
-            button.FlatAppearance.BorderColor = primary ? accent : Color.FromArgb(80, 111, 111);
+            button.FlatAppearance.BorderColor = primary ? accent : border;
             button.Click += action;
             return button;
         }
@@ -139,9 +139,9 @@ namespace LiveTranslate
         private Button LightButton(string text, EventHandler action)
         {
             Button button = MakeButton(text, action, false);
-            button.BackColor = Color.White;
+            button.BackColor = field;
             button.ForeColor = paperInk;
-            button.FlatAppearance.BorderColor = Color.FromArgb(177, 199, 191);
+            button.FlatAppearance.BorderColor = border;
             button.Font = new Font("Segoe UI", 9F);
             button.Height = 28;
             return button;
@@ -288,6 +288,7 @@ namespace LiveTranslate
                 audioStateLabel.Text = "Checking available audio devices...";
             else if (connected && devices.Items.Count == 0 && !audioWanted)
                 audioStateLabel.Text = "No audio devices found. Refresh sources in Settings.";
+            RefreshSessionUi();
         }
 
         private void InsertExample()
@@ -395,6 +396,7 @@ namespace LiveTranslate
                 Font = Font,
                 ShowInTaskbar = false
             };
+            WindowTheme.Apply(settingsForm);
             settingsForm.FormClosing += delegate (object sender, FormClosingEventArgs e)
             {
                 if (!closing && e.CloseReason == CloseReason.UserClosing)
@@ -610,7 +612,7 @@ namespace LiveTranslate
 
         private TabPage SettingsPage(string name)
         {
-            return new TabPage(name) { BackColor = SystemColors.Window, ForeColor = paperInk,
+            return new TabPage(name) { BackColor = surface, ForeColor = paperInk,
                 Padding = new Padding(16, 10, 16, 10), AutoScroll = true };
         }
 
@@ -622,7 +624,7 @@ namespace LiveTranslate
             var label = new Label { Text = name, AutoSize = true, Anchor = AnchorStyles.Left, Font = new Font(Font, FontStyle.Bold),
                 ForeColor = paperInk, Margin = new Padding(0, 0, 10, 0) };
             var rule = new Panel { Height = 1, Anchor = AnchorStyles.Left | AnchorStyles.Right, Margin = Padding.Empty,
-                BackColor = SystemInformation.HighContrast ? SystemColors.WindowText : Color.FromArgb(211, 224, 221) };
+                BackColor = border };
             heading.Controls.Add(label, 0, 0); heading.Controls.Add(rule, 1, 0);
             table.Controls.Add(heading, 0, row); table.SetColumnSpan(heading, 2);
         }
@@ -658,19 +660,19 @@ namespace LiveTranslate
             if (button != null)
             {
                 bool primary = button.BackColor == accent;
-                button.BackColor = primary ? (contrast ? SystemColors.Highlight : violet) : SystemColors.Window;
-                button.ForeColor = primary ? (contrast ? SystemColors.HighlightText : Color.White) : (contrast ? SystemColors.WindowText : paperInk);
-                button.FlatAppearance.BorderColor = primary ? button.BackColor : (contrast ? SystemColors.WindowText : Color.FromArgb(154, 174, 171));
+                button.BackColor = primary ? accent : field;
+                button.ForeColor = primary ? WindowTheme.AccentInk : ink;
+                button.FlatAppearance.BorderColor = primary ? accent : border;
             }
             else if (control is TextBox || control is ComboBox || control is NumericUpDown)
             {
-                control.ForeColor = SystemColors.WindowText;
-                TextBox text = control as TextBox;
-                control.BackColor = text != null && text.ReadOnly ? SystemColors.Control : SystemColors.Window;
+                control.ForeColor = ink;
+                control.BackColor = field;
+                control.HandleCreated += delegate { WindowTheme.ApplyControl(control); };
             }
             else if (control is Label || control is CheckBox)
             {
-                control.ForeColor = contrast ? SystemColors.WindowText : control.ForeColor == muted ? secondaryInk : control.ForeColor == accent ? violet : paperInk;
+                control.ForeColor = contrast ? SystemColors.WindowText : control.ForeColor == muted ? muted : control.ForeColor == accent ? accent : ink;
             }
             foreach (Control child in control.Controls) StyleSettingControl(child);
         }

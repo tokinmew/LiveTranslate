@@ -49,21 +49,30 @@ namespace LiveTranslate
 
         // Source visibility changes the length of each entry. Keep the reader
         // on the same translation even when dozens of earlier source lines disappear.
-        public void Reflow(int[] previousLengths, List<CaptionEntry> entries)
+        public void Reflow(int[] previousLengths, int[] previousOffsets, List<CaptionEntry> entries)
         {
             if (!preserve || previousLengths.Length == 0) return;
-            selectionStart = MapCharacter(selectionStart, previousLengths, entries);
-            selectionEnd = MapCharacter(selectionEnd, previousLengths, entries);
-            topCharacter = MapCharacter(topCharacter, previousLengths, entries);
+            selectionStart = MapCharacter(selectionStart, previousLengths, previousOffsets, entries);
+            selectionEnd = MapCharacter(selectionEnd, previousLengths, previousOffsets, entries);
+            topCharacter = MapCharacter(topCharacter, previousLengths, previousOffsets, entries);
         }
 
-        private static int MapCharacter(int index, int[] before, List<CaptionEntry> entries)
+        private static int MapCharacter(int index, int[] before, int[] offsets, List<CaptionEntry> entries)
         {
             int after = 0;
             for (int i = 0; i < before.Length; i++)
             {
                 int length = entries[i].RenderedLength;
-                if (index < before[i]) return after + Math.Min(index, Math.Max(0, length - 1));
+                if (index < before[i])
+                {
+                    CaptionEntry entry = entries[i];
+                    // Source text appears before the translation. Anchor a reader
+                    // inside English to that text when its preceding source toggles.
+                    int local = index >= offsets[i] ? entry.TranslationOffset + index - offsets[i] : index;
+                    if (index >= entry.HeaderLength && index < offsets[i] && entry.TranslationOffset == entry.HeaderLength)
+                        local = entry.TranslationOffset;
+                    return after + Math.Min(local, Math.Max(0, length - 1));
+                }
                 index -= before[i];
                 after += length;
             }

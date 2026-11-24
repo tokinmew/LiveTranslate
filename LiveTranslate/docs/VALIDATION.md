@@ -1,4 +1,16 @@
-# LiveTranslate 0.6.7 release testing
+# LiveTranslate 0.7.0 release testing
+
+The 0.7.0 redesign is a native Windows Forms workspace built from the supplied Live session, Audio setup and floating-caption design references. Four persistent pages reuse the existing controls and one transcript. The updater still accepts the original signing key and public GitHub stable releases.
+
+Native fixture checks cover capture-session routing, stale results, disconnected devices and monitors, a 1,182-caption transcript with bounded native handles, source visibility and selection retention, reply practice, settings, language search, update UI, offline changelog, page navigation, pause/resume/end, caption-window controls and long-caption paging. The fixtures create generated captions and isolate application startup; they do not listen to a microphone or capture a personal screen. Compact windows and simulated 125%, 150% and 200% scaling are layout checks rather than a claim about every real Windows DPI configuration.
+
+The regression checks include 44 OCR-guard cases, 27 screen-engine cases, 23 GitHub feed/install cases and three public-only packaging cases. This UI release retains the 0.6.11 recognition filters; it does not establish new OCR accuracy results.
+
+The installed 0.6.10 updater was exercised in a disposable copy against the original-key-signed 0.7.0 source update. Its real compiler and Defender checks passed. An injected commit failure restored the old fixture, and retrying the same prepared update succeeded. Runtime, model and settings sentinels retained their bytes; the actual installed app was read-only. Equal and older installs were rejected. The next-patch comparison and update UI were checked with 0.7.1, without publishing a 0.7.1 release.
+
+Session history remains memory-only and retains the newest 180 entries. Transcript export requires an explicit file choice. Captions remain an ordinary Windows window for a compatible headset desktop view. Physical headset legibility, VRChat interaction, live audio latency and a second-PC upgrade still require Tokin/A51 field testing.
+
+## Earlier 0.6.7 results
 
 All 20 built-in practice combinations have a translated reply, a romanized reading and an approximate English sound cue. The four choices cover Japanese, Korean and both Mandarin writing systems. The English cues approximate the sound and do not encode every phonetic distinction.
 

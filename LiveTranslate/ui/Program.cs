@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.6.11.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.6.11.0")]
+[assembly: System.Reflection.AssemblyVersion("0.7.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.7.0.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -91,6 +91,7 @@ namespace LiveTranslate
         public string Original;
         public string Time;
         public int RenderedLength;
+        public int TranslationOffset, HeaderLength;
         public CaptionEntry(string label, string text, string original)
         {
             Label = label;
@@ -102,17 +103,17 @@ namespace LiveTranslate
 
     internal sealed partial class MainForm : Form
     {
-        private readonly Color background = Color.FromArgb(237, 243, 241);
-        private readonly Color surface = Color.FromArgb(23, 45, 48);
-        private readonly Color field = Color.FromArgb(39, 67, 69);
-        private readonly Color ink = Color.FromArgb(249, 250, 254);
-        private readonly Color muted = Color.FromArgb(191, 213, 208);
-        private readonly Color accent = Color.FromArgb(116, 225, 194);
-        private readonly Color border = Color.FromArgb(61, 88, 89);
-        private readonly Color paper = Color.White;
-        private readonly Color paperInk = Color.FromArgb(23, 48, 51);
-        private readonly Color secondaryInk = Color.FromArgb(74, 99, 101);
-        private readonly Color violet = Color.FromArgb(17, 107, 96);
+        private readonly Color background = WindowTheme.Background;
+        private readonly Color surface = WindowTheme.Card;
+        private readonly Color field = WindowTheme.Field;
+        private readonly Color ink = WindowTheme.Ink;
+        private readonly Color muted = WindowTheme.Muted;
+        private readonly Color accent = WindowTheme.Accent;
+        private readonly Color border = WindowTheme.Border;
+        private readonly Color paper = WindowTheme.Card;
+        private readonly Color paperInk = WindowTheme.Ink;
+        private readonly Color secondaryInk = WindowTheme.Muted;
+        private readonly Color violet = WindowTheme.Purple;
         private readonly JavaScriptSerializer json = new JavaScriptSerializer();
         private readonly object writeLock = new object ();
         private readonly Dictionary<int, PendingRequest> pending = new Dictionary<int, PendingRequest>();
@@ -128,9 +129,9 @@ namespace LiveTranslate
         private string checkedOcrPath = "";
         private const string DialogueInstaller = "Install Korean dialogue.cmd";
         private enum ComponentSetup { Standard, Quality, KoreanDialogue }
-        private readonly Font captionFont = new Font("Segoe UI", 16F);
+        private readonly Font captionFont = new Font("Segoe UI", 18F, FontStyle.Bold);
         private readonly Font labelFont = new Font("Segoe UI", 8.5F, FontStyle.Bold);
-        private readonly Font sourceFont = new Font("Segoe UI", 10F);
+        private readonly Font sourceFont = new Font("Segoe UI", 12F);
         private Process worker, installer;
         private StreamWriter inputWriter;
         private int requestId;
@@ -160,7 +161,7 @@ namespace LiveTranslate
         private Rectangle? selectedRegion;
         public MainForm()
         {
-            Text = "Live Translate";
+            Text = "LiveTranslate";
             try
             {
                 Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -176,8 +177,9 @@ namespace LiveTranslate
             AutoScaleDimensions = new SizeF(96F, 96F);
             AutoScaleMode = AutoScaleMode.Dpi;
             StartPosition = FormStartPosition.CenterScreen;
-            Size = new Size(1190, 760);
-            MinimumSize = new Size(790, 550);
+            Size = new Size(1280, 820);
+            MinimumSize = new Size(900, 620);
+            WindowTheme.Apply(this);
             json.MaxJsonLength = 4 * 1024 * 1024;
             BindCaptionLayers();
             BuildSettings();
@@ -299,7 +301,7 @@ namespace LiveTranslate
                 bool editable = code == "other";
                 audioLanguage.ReadOnly = !editable;
                 ocrLanguage.ReadOnly = !editable;
-                audioLanguage.BackColor = ocrLanguage.BackColor = editable ? SystemColors.Window : SystemColors.Control;
+                audioLanguage.BackColor = ocrLanguage.BackColor = field;
                 customTextSource.Enabled = code == "other";
                 japaneseDirection.Visible = code == "ja";
                 if (code != "other")
@@ -1069,7 +1071,7 @@ namespace LiveTranslate
                     try
                     {
                         if (type == "audio" || type == "result" || drivesScreenOverlay)
-                            PresentVrCaption(type == "result" ? "text" : type, Value(message, "text"));
+                            PresentVrCaption(type == "result" ? "text" : type, Value(message, "text"), Value(message, "original"), label);
                         if (type == "audio") SpeakTranslation(Value(message, "text"));
                         if (drivesScreenOverlay)
                             screenCaptions.Present(Items(message, "regions"), Value(message, "text"), CaptureBounds(),
@@ -1542,6 +1544,7 @@ namespace LiveTranslate
             position.Restore(output, removed);
             emptyOutput.Visible = false;
             UpdateTranscriptTools();
+            RefreshSessionUi();
         }
 
         private void Append(string label, string text)
@@ -1553,37 +1556,40 @@ namespace LiveTranslate
         {
             TranscriptPosition position = new TranscriptPosition(output);
             int[] previousLengths = history.ConvertAll(delegate(CaptionEntry entry) { return entry.RenderedLength; }).ToArray();
+            int[] previousOffsets = history.ConvertAll(delegate(CaptionEntry entry) { return entry.TranslationOffset; }).ToArray();
             output.SuspendLayout();
             output.Clear();
             foreach (CaptionEntry entry in history)
                 WriteCaption(entry);
 
             output.SelectionStart = output.TextLength;
-            position.Reflow(previousLengths, history);
+            position.Reflow(previousLengths, previousOffsets, history);
             position.Restore(output, 0);
             output.ResumeLayout();
             emptyOutput.Visible = history.Count == 0;
             UpdateTranscriptTools();
+            RefreshSessionUi();
         }
 
         private void WriteCaption(CaptionEntry entry)
         {
             int start = output.TextLength;
             output.SelectionFont = labelFont;
-            output.SelectionColor = entry.Label == "AUDIO" ? Color.FromArgb(65, 74, 142) : violet;
-            if (entry.Label.Contains("ERROR")) output.SelectionColor = Color.FromArgb(159, 55, 53);
+            output.SelectionColor = entry.Label.Contains("ERROR") ? WindowTheme.Warning : muted;
             output.AppendText(entry.Label);
             output.SelectionColor = secondaryInk;
             output.AppendText("    " + entry.Time + Environment.NewLine);
-            output.SelectionFont = captionFont;
-            output.SelectionColor = paperInk;
-            output.AppendText(entry.Text + Environment.NewLine);
+            entry.HeaderLength = output.TextLength - start;
             if (showSource.Checked && !String.IsNullOrWhiteSpace(entry.Original))
             {
                 output.SelectionFont = sourceFont;
-                output.SelectionColor = secondaryInk;
+                output.SelectionColor = violet;
                 output.AppendText("Source: " + entry.Original.Trim() + Environment.NewLine);
             }
+            entry.TranslationOffset = output.TextLength - start;
+            output.SelectionFont = captionFont;
+            output.SelectionColor = paperInk;
+            output.AppendText(entry.Text + Environment.NewLine);
             output.AppendText(Environment.NewLine);
             entry.RenderedLength = output.TextLength - start;
         }
@@ -1592,6 +1598,7 @@ namespace LiveTranslate
         {
             if (status != null)
                 status.Text = text;
+            RefreshSessionUi();
         }
 
         private void Ui(MethodInvoker action)

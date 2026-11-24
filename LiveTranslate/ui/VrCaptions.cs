@@ -19,6 +19,13 @@ namespace LiveTranslate
                 return;
             }
             var window = new VrCaptionWindow(vrCaptionState);
+            window.OpenDashboardRequested = delegate { OpenVrDashboard(false); };
+            window.OpenSettingsRequested = delegate { OpenVrDashboard(true); };
+            window.PauseRequested = delegate { ToggleSessionPause(); };
+            window.StatusProvider = delegate { return SessionStatusText; };
+            window.PausedProvider = delegate { return SessionPaused; };
+            window.CanPauseProvider = delegate { return SessionCanPause; };
+            window.InputSourceProvider = VrCaptureInput;
             Rectangle area = Screen.FromControl(this).WorkingArea;
             window.Size = new Size(Math.Min(window.Width, area.Width), Math.Min(window.Height, area.Height));
             window.Location = new Point(area.Left + (area.Width - window.Width) / 2, area.Bottom - window.Height);
@@ -28,9 +35,36 @@ namespace LiveTranslate
             window.Show();
         }
 
+        private void OpenVrDashboard(bool settings)
+        {
+            if (closing || IsDisposed) return;
+            if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+            ShowSessionPage(settings ? "settings" : "live");
+            Show();
+            Activate();
+        }
+
+        private string VrCaptureInput()
+        {
+            if (SessionPaused) return "Translation paused";
+            if (audioWanted)
+            {
+                Choice device = devices.SelectedItem as Choice;
+                string input = device == null ? "Audio input" : device.Code == "pc" ? "System audio" :
+                    device.Code == "both" ? "System audio + microphone" : "Microphone";
+                return input + (screenWanted ? " + screen" : "");
+            }
+            return screenWanted ? "Screen area" : oneShotPending ? "Selected screen area" : screenArmed ? "Screen area armed" : "No capture running";
+        }
+
         private void PresentVrCaption(string kind, string text)
         {
-            vrCaptionState.Present(kind, text, VrCaptionWindow.Clock.ElapsedMilliseconds);
+            PresentVrCaption(kind, text, null, null);
+        }
+
+        private void PresentVrCaption(string kind, string text, string original, string sourceLabel)
+        {
+            vrCaptionState.Present(kind, text, original, sourceLabel, VrCaptionWindow.Clock.ElapsedMilliseconds);
             if (vrCaptionWindow != null) vrCaptionWindow.RefreshCaptions();
         }
 

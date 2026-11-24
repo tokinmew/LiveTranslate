@@ -25,6 +25,11 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.7.0", "A new translation workspace",
+                "A dark sidebar opens Live session, Session history, Audio setup and Settings. Moving between pages keeps the current capture session and transcript.",
+                "Pause translation remembers active inputs; End session stops capture while keeping captions. Save transcript exports the current session only when you choose a file.",
+                "The separate Windows captions window shows original text and English with pinning, pause and dashboard controls. Screen reading, pasted text, reply practice and signed public GitHub updates remain available.",
+                "Major feature or interface releases use 0.x.0; patches for this series use 0.7.1, 0.7.2 and onward."),
             new ReleaseNote("0.6.11", "Fewer false screen captions",
                 "Automatic full-display reading checks short text at its original screen position and rejects isolated toolbar symbols and unsupported fragments.",
                 "Added checks against clothing-like patterns and textured backgrounds. These reduce false captions; difficult text over patterns can still be missed or misread.",
@@ -102,8 +107,9 @@ namespace LiveTranslate
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false;
             MinimizeBox = false;
-            BackColor = SystemColors.Window;
-            ForeColor = SystemColors.WindowText;
+            BackColor = WindowTheme.Background;
+            ForeColor = WindowTheme.Ink;
+            WindowTheme.Apply(this);
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18),
                 ColumnCount = 1, RowCount = 5 };
@@ -119,6 +125,9 @@ namespace LiveTranslate
             versions.Name = "ReleaseVersion";
             versions.AccessibleName = "Release version";
             versions.DropDownStyle = ComboBoxStyle.DropDownList;
+            versions.BackColor = WindowTheme.Field;
+            versions.ForeColor = WindowTheme.Ink;
+            versions.HandleCreated += delegate { WindowTheme.ApplyControl(versions); };
             versions.MaxDropDownItems = 14;
             versions.Width = 128;
             versions.TabIndex = 1;
@@ -138,12 +147,13 @@ namespace LiveTranslate
             notes.Multiline = true;
             notes.ReadOnly = true;
             notes.ScrollBars = ScrollBars.Vertical;
-            notes.BackColor = SystemColors.Window;
-            notes.ForeColor = SystemColors.WindowText;
+            notes.BackColor = WindowTheme.Background;
+            notes.ForeColor = WindowTheme.Muted;
+            notes.HandleCreated += delegate { WindowTheme.ApplyControl(notes); };
             notes.TabIndex = 2;
             layout.Controls.Add(notes, 0, 3);
 
-            var close = new Button { Text = "&Close", AccessibleName = "Close changelog", AutoSize = true,
+            var close = new ModernButton { Text = "&Close", AccessibleName = "Close changelog", AutoSize = true,
                 MinimumSize = new Size(80, 28), Anchor = AnchorStyles.Right, DialogResult = DialogResult.Cancel,
                 TabIndex = 3 };
             layout.Controls.Add(close, 0, 4);

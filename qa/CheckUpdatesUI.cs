@@ -88,6 +88,9 @@ internal static class CheckUpdatesUI
         File.Copy(Assembly.GetExecutingAssembly().Location, Path.Combine(runtime, "python.exe"));
         File.WriteAllText(Path.Combine(backend, "app_updates.py"), "");
         var json = new JavaScriptSerializer();
+        Version assemblyVersion = typeof(MainForm).Assembly.GetName().Version;
+        string installed = assemblyVersion.ToString(3);
+        string nextPatch = new Version(assemblyVersion.Major, assemblyVersion.Minor, assemblyVersion.Build + 1).ToString(3);
         string response = Path.Combine(basePath, "app_updates.py.fixture");
         string calls = Path.Combine(basePath, "calls.txt");
         using (var window = new MainForm())
@@ -109,21 +112,21 @@ internal static class CheckUpdatesUI
             Check(!Field<Button>(window,"installUpdate").Enabled, "installation waits for a verified GitHub offer");
             Check(Field<Process>(window,"worker") == null, "hidden UI tests do not start capture");
 
-            File.WriteAllText(response, json.Serialize(new { ok=true, available=true, version="0.6.11", sha256=new string('a',64), size=1024 }));
+            File.WriteAllText(response, json.Serialize(new { ok=true, available=true, version=nextPatch, sha256=new string('a',64), size=1024 }));
             Click(Field<Button>(window,"checkUpdates"));
             PumpUntil(() => Field<object>(window,"updateJob") == null);
-            Check(Field<Label>(window,"updateState").Text.Contains("GitHub release v0.6.11") && Field<Button>(window,"installUpdate").Enabled,
+            Check(Field<Label>(window,"updateState").Text.Contains("GitHub release v" + nextPatch) && Field<Button>(window,"installUpdate").Enabled,
                 "a newer GitHub version enables download and restart");
             string[] used = File.ReadAllLines(calls);
-            Check(used.Length == 1 && used[0] == "app_updates.py check --installed 0.6.10", "legacy local preference cannot change the GitHub-only helper command");
+            Check(used.Length == 1 && used[0] == "app_updates.py check --installed " + installed, "legacy local preference cannot change the GitHub-only helper command");
 
             File.WriteAllText(response, json.Serialize(new { ok=false, error="The release changed after checking. Check again before installing." }));
             Click(Field<Button>(window,"installUpdate"));
             PumpUntil(() => Field<object>(window,"updateJob") == null);
-            string prepare = "app_updates.py prepare --installed 0.6.10 --version 0.6.11 --sha256 " + new string('a',64);
+            string prepare = "app_updates.py prepare --installed " + installed + " --version " + nextPatch + " --sha256 " + new string('a',64);
             Check(File.ReadAllLines(calls)[1] == prepare && !Field<Button>(window,"installUpdate").Enabled,
                 "download preparation binds the selected GitHub version and digest and requires recheck after a changed release");
-            File.WriteAllText(response, json.Serialize(new { ok=true, available=true, version="0.6.11", sha256=new string('a',64), size=1024 }));
+            File.WriteAllText(response, json.Serialize(new { ok=true, available=true, version=nextPatch, sha256=new string('a',64), size=1024 }));
             Click(Field<Button>(window,"checkUpdates"));
             PumpUntil(() => Field<object>(window,"updateJob") == null);
 
@@ -151,17 +154,17 @@ internal static class CheckUpdatesUI
             PumpUntil(() => Field<object>(window,"updateJob") == null);
             Check(!Field<Label>(window,"updateState").Text.Contains("up to date"), "an incomplete response cannot report the app current");
 
-            File.WriteAllText(response, json.Serialize(new { ok=true, available=true, version="0.6.11", sha256=new string('z',64), size=1024 }));
+            File.WriteAllText(response, json.Serialize(new { ok=true, available=true, version=nextPatch, sha256=new string('z',64), size=1024 }));
             Click(Field<Button>(window,"checkUpdates"));
             PumpUntil(() => Field<object>(window,"updateJob") == null);
             Check(!Field<Button>(window,"installUpdate").Enabled, "a malformed digest cannot enable installation");
 
-            File.WriteAllText(response, json.Serialize(new { ok=true, available=false, version="0.6.10" }));
+            File.WriteAllText(response, json.Serialize(new { ok=true, available=false, version=installed }));
             Click(Field<Button>(window,"checkUpdates"));
             PumpUntil(() => Field<object>(window,"updateJob") == null);
             Check(Field<Label>(window,"updateState").Text.Contains("up to date with GitHub"), "a successful current GitHub response is identified");
             bool fixedChannel = true;
-            foreach (string call in File.ReadAllLines(calls)) fixedChannel &= call == "app_updates.py check --installed 0.6.10" || call == prepare;
+            foreach (string call in File.ReadAllLines(calls)) fixedChannel &= call == "app_updates.py check --installed " + installed || call == prepare;
             Check(fixedChannel, "all checks use the same official channel");
             Check(File.ReadAllText(preference).Contains("0.6.8-Local-Update-Feed"), "ignoring legacy source preferences preserves user files");
         }

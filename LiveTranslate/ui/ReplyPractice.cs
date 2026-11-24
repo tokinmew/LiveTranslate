@@ -51,8 +51,9 @@ namespace LiveTranslate
                 Name = "ReplyPractice", Text = "LiveTranslate · Reply practice", Size = new Size(660, 710),
                 MinimumSize = new Size(470, 430), StartPosition = FormStartPosition.CenterParent,
                 AutoScaleDimensions = new SizeF(96,96), AutoScaleMode = AutoScaleMode.Dpi,
-                BackColor = background, ForeColor = paperInk, Font = Font, ShowInTaskbar = false
+                BackColor = WindowTheme.Background, ForeColor = WindowTheme.Ink, Font = Font, ShowInTaskbar = false
             };
+            WindowTheme.Apply(practiceWindow);
             practiceWindow.Load += delegate { FitToDisplay(practiceWindow); };
             practiceWindow.FormClosed += delegate { practiceRevision++; practicePending = 0; practiceFeedback = ""; };
             Panel scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(17, 10, 17, 12) };
@@ -93,9 +94,10 @@ namespace LiveTranslate
             TableLayoutPanel draftLayout = Rows(28, 0, 40);
             draftLayout.Controls.Add(Title("Your English reply", paperInk, 13F), 0, 0);
             practiceDraft = new TextBox { Multiline = true, AcceptsReturn = true, MaxLength = 500, Dock = DockStyle.Fill,
-                AccessibleName = "Your English reply, 500 characters maximum", BackColor = Color.FromArgb(245,249,247),
-                ForeColor = paperInk, Font = new Font(Font.FontFamily, 12F), ScrollBars = ScrollBars.Vertical,
+                AccessibleName = "Your English reply, 500 characters maximum", BackColor = WindowTheme.Field,
+                ForeColor = WindowTheme.Ink, Font = new Font(Font.FontFamily, 12F), ScrollBars = ScrollBars.Vertical,
                 BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(0, 4, 0, 7) };
+            practiceDraft.HandleCreated += delegate { WindowTheme.ApplyControl(practiceDraft); };
             draftLayout.Controls.Add(practiceDraft, 0, 1);
             TableLayoutPanel runRow = Columns(0, 145);
             runRow.Controls.Add(Note("Ctrl+Enter to translate", secondaryInk), 0, 0);
@@ -117,7 +119,7 @@ namespace LiveTranslate
             result.Controls.Add(translatedHeading, 0, 0);
             practiceTranslation = PracticeOutput("Translated reply", paperInk, 14F);
             result.Controls.Add(practiceTranslation, 0, 1);
-            result.Controls.Add(Divider(Color.FromArgb(218,231,225)), 0, 2);
+            result.Controls.Add(Divider(WindowTheme.Border), 0, 2);
             TableLayoutPanel readingHeading = Columns(0, 64);
             practiceScheme = Title("Phonetic spelling", paperInk, 11F);
             practiceScheme.AutoEllipsis = true;
@@ -127,7 +129,7 @@ namespace LiveTranslate
             DockAction(practiceCopyReading, new Padding(0, 2, 0, 2));
             readingHeading.Controls.Add(practiceCopyReading, 1, 0);
             result.Controls.Add(readingHeading, 0, 3);
-            practiceReading = PracticeOutput("Phonetic spelling", violet, 12F);
+            practiceReading = PracticeOutput("Phonetic spelling", WindowTheme.Purple, 12F);
             result.Controls.Add(practiceReading, 0, 4);
             practiceNote = PracticeOutput("Pronunciation guidance and approximate sounds", secondaryInk, 9.5F);
             result.Controls.Add(practiceNote, 0, 5);
@@ -167,10 +169,12 @@ namespace LiveTranslate
 
         private static RichTextBox PracticeOutput(string name, Color color, float size)
         {
-            return new RichTextBox { AccessibleName = name, Dock = DockStyle.Fill, ReadOnly = true,
-                DetectUrls = false, BackColor = Color.White, ForeColor = color, Font = new Font("Segoe UI", size),
+            var output = new RichTextBox { AccessibleName = name, Dock = DockStyle.Fill, ReadOnly = true,
+                DetectUrls = false, BackColor = WindowTheme.Card, ForeColor = WindowTheme.HighContrast ? SystemColors.WindowText : color, Font = new Font("Segoe UI", size),
                 WordWrap = true, HideSelection = false, BorderStyle = BorderStyle.None,
                 Margin = new Padding(0, 3, 0, 3), ScrollBars = RichTextBoxScrollBars.Vertical };
+            output.HandleCreated += delegate { WindowTheme.ApplyControl(output); };
+            return output;
         }
 
         private void UpdateReplyTargets(Dictionary<string,object> message)

@@ -1,4 +1,14 @@
-LiveTranslate 0.6.9 for Windows 11 x64
+LiveTranslate 0.7.0 for Windows 11 x64
+
+The sidebar opens Live session, Session history, Audio setup and Settings.
+Choose your real audio input in Audio setup. Translation currently targets
+English. Live session keeps screen watching, capture area, Read once,
+pasted-text translation and reply practice available.
+
+Pause translation remembers the running inputs. End session stops capture
+and keeps the transcript. Save transcript writes a file only when you choose
+one. History contains the newest 180 captions from this app session.
+Open captions shows a separate pinnable Windows caption window.
 
 For a new installation, open LiveTranslate-0.6.9-Setup.exe and choose Install.
 Open LiveTranslate from the Start menu. You can also open LiveTranslate.exe
