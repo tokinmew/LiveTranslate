@@ -1,9 +1,10 @@
-"""Install the reviewed multilingual text pack without the optional audio packs."""
+"""Install the reviewed multilingual text pack and three app-local Latin OCR models."""
 import argparse
 import hashlib
 from pathlib import Path
 import subprocess
 import sys
+from extra_ocr_models import install as install_extra_ocr
 
 
 def install(root, offline=False):
@@ -17,7 +18,10 @@ def install(root, offline=False):
     args = [sys.executable, "-I", "-B", "-X", "utf8", str(folder / "install.py"), "--pack", "nllb"]
     if offline:
         args.append("--offline")
-    return subprocess.run(args, cwd=root).returncode
+    result = subprocess.run(args, cwd=root).returncode
+    if result:
+        return result
+    return install_extra_ocr(root, offline=offline)
 
 
 if __name__ == "__main__":
@@ -25,10 +29,10 @@ if __name__ == "__main__":
     parser.add_argument("--offline", action="store_true", help="verify an installed or staged pack")
     parser.add_argument("--pause", action="store_true", help="keep the setup window open to read the result")
     args = parser.parse_args()
-    print("Multilingual written translation for personal, noncommercial use.", flush=True)
+    print("Multilingual written translation for personal, noncommercial use, plus German, Italian and Spanish OCR.", flush=True)
     try:
         result = install(Path(__file__).resolve().parents[1], args.offline)
-    except (OSError, ValueError, KeyboardInterrupt) as error:
+    except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired, KeyboardInterrupt) as error:
         print("Setup stopped.", error, file=sys.stderr, flush=True)
         result = 1
     if args.pause and sys.stdin.isatty():

@@ -7,6 +7,12 @@ import threading
 import time
 
 
+# Ordinary inter-word pauses must survive both the capture gate and the
+# independent neural speech gate. A shorter cutoff turns deliberate speech
+# into isolated words before the language model can use their context.
+SPEECH_PAUSE_MS = 720
+
+
 @dataclass(frozen=True)
 class CapturedPhrase:
     payload: bytes
@@ -95,10 +101,10 @@ class PhraseBuffer:
     FRAME_MS = 20
     # Keep soft initial consonants while a louder part of the word opens the gate.
     PREROLL = 12
-    SILENCE = 18
+    SILENCE = SPEECH_PAUSE_MS // FRAME_MS
     MIN_VOICE_MS = 60
     MIN_RMS = 6
-    IDLE_SECONDS = 0.38
+    IDLE_SECONDS = (SPEECH_PAUSE_MS + FRAME_MS) / 1000
 
     def __init__(self, rate, channels, seconds, submit):
         import numpy as np
@@ -137,6 +143,23 @@ class PhraseBuffer:
         # One quiet centre channel can carry all the dialogue in a 7.1 stream.
         return float(np.sqrt(np.max(np.mean(samples * samples, axis=0))))
 
+    def _pause_cut(self):
+        # A deliberate phrase may cross the latency target while its last
+        # word is still sounding. Reuse a real pause in the latter half of
+        # the buffered phrase before falling back to a cut through speech.
+        # Split in its middle so both neighbouring words retain quiet edges.
+        start = None
+        cuts = []
+        for index in range(self._target // 2, len(self._levels)):
+            if self._levels[index] < self.MIN_RMS:
+                if start is None:
+                    start = index
+            elif start is not None:
+                if index - start >= 6:
+                    cuts.append((start + index) // 2)
+                start = None
+        return cuts[-1] if cuts else None
+
     def _add_frame(self, frame):
         level = self._level(frame)
         voiced = level >= self.MIN_RMS
@@ -153,6 +176,10 @@ class PhraseBuffer:
         if self._silent >= self.SILENCE or (len(self._frames) >= self._target and self._silent >= 6):
             self._emit()
         elif len(self._frames) >= self._max:
+            pause = self._pause_cut()
+            if pause is not None:
+                self._emit(pause)
+                return
             # Prefer a nearby trough to slicing through a loud syllable.
             start_at = max(1, self._max - 24)
             trough = min(range(start_at, len(self._levels)), key=self._levels.__getitem__)
@@ -162,12 +189,15 @@ class PhraseBuffer:
     def _finish_idle(self, now, incoming_seconds=0.0):
         if self._last is None:
             return
-        elapsed = now - self._last
+        # Incoming packets cover time before this callback. Only the gap
+        # before that audio is a pause; counting the packet's own duration
+        # can finish a word just as its continuation arrives in a large block.
+        elapsed = max(0.0, now - self._last - incoming_seconds)
         if elapsed < self.IDLE_SECONDS:
             # Loopback can deliver several silent frames, then stop delivering
             # packets. This is one pause. Reserve one driver packet for sound
             # still in flight, including an unusually large incoming callback.
-            allowance = max(self._packet_seconds, incoming_seconds, self.FRAME_MS / 1000)
+            allowance = max(self._packet_seconds, self.FRAME_MS / 1000)
             recorded_silence = self._silent * self.FRAME_MS / 1000
             if not self._silent or recorded_silence + elapsed - allowance < self.IDLE_SECONDS:
                 return

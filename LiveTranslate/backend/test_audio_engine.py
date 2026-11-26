@@ -160,7 +160,7 @@ class AudioLifecycleTests(unittest.TestCase):
                     def send():
                         for level in levels:
                             speech = struct.pack("<h", level) * 1313
-                            silence = b"\0\0" * 8000
+                            silence = b"\0\0" * 14400
                             data = speech + silence
                             kwargs["stream_callback"](data, len(data) // 2, {}, 0)
                         sent.set()

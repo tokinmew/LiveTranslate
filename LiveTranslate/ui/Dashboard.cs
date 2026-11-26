@@ -335,7 +335,7 @@ namespace LiveTranslate
                     return;
                 }
                 string explanation = "Download the optional NLLB text model for personal, noncommercial use?\r\n\r\n" +
-                    "The installer downloads four files (601 MiB total) from the checked Hugging Face source. It verifies the pinned SHA-256 hashes and runs Microsoft Defender.\r\n\r\n" +
+                    "The installer downloads the text model (601 MiB) and German, Italian and Spanish OCR data (6.22 MiB) into LiveTranslate's own folders. It verifies pinned file identities and runs Microsoft Defender. Windows language packs are unchanged.\r\n\r\n" +
                     "Restart Live Translate after the installer finishes to use the new languages.";
                 if (MessageBox.Show(settingsForm, explanation, "Get more text languages", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 if (writtenLanguageSetup != null) writtenLanguageSetup.Dispose();
@@ -560,7 +560,7 @@ namespace LiveTranslate
             setupAll = MakeButton("Set up starter languages", delegate { StartInstall("install_all_profiles", null); }, true);
             fileControls.Controls.Add(ModelSetting("Starter languages", "Chinese (both scripts), Korean and Japanese. Includes speech and screen recognition.", setupAll), 0, 1);
             moreWrittenLanguages = MakeButton("Get more text languages…", InstallWrittenLanguages, false);
-            fileControls.Controls.Add(ModelSetting("Multilingual text", "Optional 601 MiB model for personal, noncommercial use.", moreWrittenLanguages), 0, 2);
+            fileControls.Controls.Add(ModelSetting("More text and screen languages", "Optional 607 MiB: text model plus German, Italian and Spanish OCR. Personal, noncommercial use.", moreWrittenLanguages), 0, 2);
 
             ComboBox packSpeech = Combo();
             packSpeech.AccessibleName = "Optional speech model package";

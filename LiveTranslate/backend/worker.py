@@ -212,6 +212,9 @@ class Worker:
             reply.update(type="status", **self.asset_status(str(item.get("tesseract_path", ""))))
         elif command == "devices":
             reply.update(type="devices", devices=self.audio.devices())
+        elif command == "preview_screen":
+            reply.update(type="screen_preview", **self.screen.preview(
+                item.get("region", {"monitor": "primary"}), item.get("exclude_windows", ())))
         elif command == "catalog":
             from profiles import PROFILES
             languages = [{"code": p.code, "name": p.name} for p in PROFILES if p.code in CHECKED_TEXT_CODES]
@@ -712,6 +715,7 @@ class Worker:
                 last_held = set()
                 last_result = {}
                 displayed = False
+                last_scan_status = None
                 cache = OrderedDict()
                 while self._screen_current_request(request):
                     scan_start = time.monotonic()
@@ -740,6 +744,12 @@ class Worker:
                         last_held = set(held)
                     else:
                         tracker.accept(placements, last_result, samples, held)
+                    scan_status = ("Text recognized and translated." if displayed else
+                                   "Text recognized, but no translation accepted. Check the selected language and language files." if placements else
+                                   "Scanning. No supported foreign text confirmed. Preview captured view to check the source and text size.")
+                    if scan_status != last_scan_status:
+                        self._screen_event(request, {"type": "capture_state", "state": "active", "message": scan_status})
+                        last_scan_status = scan_status
                     elapsed = time.monotonic() - scan_start
                     # The requested interval is start-to-start. An expensive
                     # frame still gives the display/CPU a breather, and an Off

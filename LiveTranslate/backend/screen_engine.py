@@ -28,6 +28,7 @@ from ocr_guard import (DESKTOP_ICON_CONFUSABLE, EnglishGuard, combine_row_result
 OCR_CODES = frozenset("afr amh ara asm aze aze_cyrl bel ben bod bos bre bul cat ceb ces ckb chi_sim chi_sim_vert chi_tra chi_tra_vert chr cos cym dan deu div dzo ell eng enm epo est eus fao fas fil fin fra frk frm fry gla gle glg grc guj hat heb hin hrv hun hye iku ind isl ita ita_old jav jpn jpn_vert kan kat kat_old kaz khm kir kmr kor kor_vert lao lat lav lit ltz mal mar mkd mlt mon mri msa mya nep nld nor oci ori osd pan pol por pus que ron rus san sin slk slv snd spa spa_old sqi srp srp_latn sun swa swe syr tam tat tel tgk tha tir ton tur uig ukr urd uzb uzb_cyrl vie yid yor".split())
 AUTO_OCR_ORDER = ("chi_tra", "chi_sim", "kor", "jpn", "eng")
 PRIORITY_OCR = frozenset(("chi_tra", "chi_sim", "kor", "jpn", "jpn_vert"))
+_CAPTURE_LOCK = threading.Lock()
 
 class ScreenCaptureUnavailable(RuntimeError):
     """Screen pixels temporarily unavailable after desktop/display changes."""
@@ -323,6 +324,9 @@ class ScreenEngine:
     def validate_region(region: dict) -> dict:
         if not isinstance(region, dict):
             raise ValueError("Select a screen rectangle first.")
+        if "window" in region:
+            from window_capture import validate_target
+            return validate_target(region)
         if region == {"monitor": "primary"}:
             return {"monitor": "primary"}
         rect = {}
@@ -370,7 +374,7 @@ class ScreenEngine:
         elif not PRIORITY_OCR.intersection(selected) or any(code not in PRIORITY_OCR | {"eng"} for code in selected):
             raise ValueError("Choose a specific source language to read this OCR language.")
         rect = self.validate_region(region)
-        full_display = rect.get("monitor") == "primary" or rect.get("full_display",False)
+        full_display = rect.get("monitor") == "primary" or rect.get("full_display",False) or "window" in rect
         psm = page_segmentation_mode(language, full_display)
         available = set(self.local_languages())
         local_ready = set(selected).issubset(available)
@@ -685,6 +689,7 @@ class ScreenEngine:
         def collect(hwnd, _):
             if (user32.GetPropW(wintypes.HWND(hwnd), "LiveTranslate.VrCaption") or
                     user32.GetPropW(wintypes.HWND(hwnd), "LiveTranslate.ReplyPractice") or
+                    user32.GetPropW(wintypes.HWND(hwnd), "LiveTranslate.CapturePreview") or
                     include_source_windows and user32.GetPropW(wintypes.HWND(hwnd), "LiveTranslate.SourceCaption")):
                 handles.append(hwnd)
             return True
@@ -767,6 +772,30 @@ class ScreenEngine:
 
     @staticmethod
     def _capture(rect, exclude_windows=()):
+        # Read once, preview and watching can arrive on different worker threads.
+        # Keep each capture lease intact until its frame has been returned.
+        with _CAPTURE_LOCK:
+            return ScreenEngine._capture_frame(rect, exclude_windows)
+
+    @staticmethod
+    def _capture_frame(rect, exclude_windows=()):
+        if "window" in rect:
+            from window_capture import capture_application
+            from PIL import ImageOps, Image
+            try:
+                original, bounds = capture_application(rect)
+            except (OSError, RuntimeError) as exc:
+                raise ScreenCaptureUnavailable(str(exc)) from exc
+            # The client frame contains only the chosen app. Masking dashboard
+            # rectangles here would erase genuine target text while it is behind
+            # the dashboard on a single monitor.
+            image = ImageOps.grayscale(original)
+            if image.width < 1200 and image.height < 1000:
+                image = image.resize((image.width * 2, image.height * 2), Image.Resampling.LANCZOS)
+            from screen_geometry import capture_map
+            capture_map(image, bounds)
+            image.info["glyph_source"] = (original, bounds["left"], bounds["top"])
+            return image
         import mss
         from mss.exception import ScreenShotError
         from PIL import Image, ImageOps
@@ -796,3 +825,21 @@ class ScreenEngine:
         capture_map(image, rect)
         image.info["glyph_source"] = (original, rect["left"], rect["top"])
         return image
+
+    def preview(self, region, exclude_windows=()):
+        """Explicit, bounded in-memory view of precisely the chosen OCR source."""
+        import base64
+        from PIL import Image
+        rect = self.validate_region(region)
+        if (not isinstance(exclude_windows, (list, tuple)) or len(exclude_windows) > 16
+                or any(type(handle) is not int or not 0 < handle < 2**64 for handle in exclude_windows)):
+            raise ValueError("Invalid window exclusions for capture preview.")
+        image = self._capture(rect, exclude_windows)
+        original = image.info.get("glyph_source", (image,))[0]
+        width, height = original.size
+        thumb = original.convert("RGB")
+        thumb.thumbnail((960, 540), Image.Resampling.LANCZOS)
+        data = io.BytesIO()
+        thumb.save(data, format="JPEG", quality=80)
+        return dict(image=base64.b64encode(data.getvalue()).decode("ascii"), width=width, height=height,
+                    source="application" if "window" in rect else "display")

@@ -1,4 +1,16 @@
-# LiveTranslate 0.7.2 release testing
+# LiveTranslate 0.8.0 release testing
+
+## Current field report and validation scope
+
+The 0.7.2 field report failed genuine-text capture on PC/VRChat, reported poor speech accuracy under Auto and explicit source selection, and identified the desktop caption arrangement as unsuitable for a one-monitor VR session. The reported headset is Quest 3S through Virtual Desktop. Languages include the four Asian starter choices and German; Italian and Spanish are next. These human failures remain open until retested. A subjective "50/50" description is not a measured accuracy score.
+
+0.8.0 adds application capture with an explicit source preview and native SteamVR output. Native output is independent of a desktop window, but OCR still reads the application's PC view. GPU applications may refuse background window images, and minimized applications are unavailable. No direct headset framebuffer or VDXR/OpenXR/standalone overlay is claimed. Missing-runtime, fake ABI, rendering and lifecycle fixtures do not replace A51's headset checks.
+
+The speech change retains up to 720 ms between words instead of splitting after about 360–380 ms. A bounded phrase uses a verified earlier pause when available rather than cutting through the final word. English filtering, silence checks and uncertain-language safeguards remain. This adds some end-of-phrase waiting time; accent recognition and general translation quality are not established by a chunking regression.
+
+Clear generated full-screen examples passed real local OCR and English translation for Japanese, Korean and both Chinese scripts on Tokin's existing starter models. German, Italian and Spanish require additional written translation files. Their matching app-local OCR files come from the same pinned official Tesseract fast-model revision as the starter OCR files; the optional multilingual text setup retains its pinned hashes and Defender scans. Automatic OCR stays CJK; explicit Latin source selection remains required. Detailed current fixture results are recorded in the release receipt; earlier results below describe their stated historical scope.
+
+Launcher/runtime selection with separate saved placement profiles is queued in the repository's VR roadmap. A launcher name does not establish the active overlay runtime.
 
 The 0.7.2 patch corrects capture-menu lifetime. The menu remains owned by the dashboard until that form is disposed, and selected actions run after native menu dismissal. The existing target selection, region cancellation, capture intent and stale-session protections remain in use. The original disposed-menu exception was reproduced through native menu click messages before the fix. A separate drawing/shutdown crash was reproduced and corrected with owned-selector cleanup and closing guards.
 
@@ -32,7 +44,7 @@ For freeform replies, the installed multilingual model translated a test sentenc
 
 The native reply window passed 22 synthetic interaction checks, including a narrow window with selectable sound guidance. The fresh-install worker protocol verified 23 responses, and desktop OCR excluded the marked practice window from both screen-scan modes. Those checks used generated inputs.
 
-The field-test guide in the developer download records the remaining desktop and headset tests. PC VR captions use a Windows window that a compatible runtime can pin. Physical headset performance remains unverified. The published GitHub path still needs a live end-to-end update on a second PC.
+The earlier field-test guide used the legacy Windows caption window and runtime pinning. Version 0.8.0 adds separate native SteamVR output as described above. Physical headset performance remains unverified. The published GitHub path still needs a live end-to-end update on a second PC.
 
 ## Earlier 0.6.6 test results
 

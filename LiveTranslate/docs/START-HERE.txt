@@ -1,10 +1,11 @@
-LiveTranslate 0.7.2 for Windows 11 x64
+LiveTranslate 0.8.0 for Windows 11 x64
 
-This patch fixes the capture-area menu error when choosing a display or
-drawing an area. Canceling a drawing keeps your previous capture target.
+This feature update adds native SteamVR captions, application capture and a
+capture preview. Screen reading reports missing pixels or unconfirmed text.
+Slower speech keeps more context across pauses and at phrase time limits.
 
-This patch removes bright default Windows surfaces from app controls, using
-subtle dark borders and scrollbars while keeping clear keyboard focus.
+The interface keeps subtle dark borders and scrollbars with clear keyboard
+focus; the earlier capture-menu crash fixes are also retained.
 
 The sidebar opens Live session, Session history, Audio setup and Settings.
 Choose your real audio input in Audio setup. Translation currently targets
@@ -14,7 +15,24 @@ pasted-text translation and reply practice available.
 Pause translation remembers the running inputs. End session stops capture
 and keeps the transcript. Save transcript writes a file only when you choose
 one. History contains the newest 180 captions from this app session.
-Open captions shows a separate pinnable Windows caption window.
+Open captions offers desktop captions or native SteamVR captions.
+
+Quest 3S / Virtual Desktop: launch VRChat through SteamVR. Open Settings,
+VR captions, then Start VR captions. Adjust placement there. Minimize the
+dashboard and return to VRChat; the native overlay does not require a second
+monitor or a desktop window pinned to your wrist. VDXR/OpenXR and standalone
+headset sessions do not have a supported native overlay yet.
+
+Choose the VRChat application under Capture area, then Preview captured view
+to verify the source. Keep VRChat restored and rendering. A window that cannot
+provide pixels reports an error; it never silently falls back to the desktop.
+This reads the application's PC view, not a direct headset framebuffer.
+
+For German, Italian and Spanish text, choose that source language explicitly.
+Settings, Language files, Get more text languages prepares the optional checked
+multilingual text pack and their matching OCR files (about 607 MiB total).
+Install these on each PC. The text model is for personal, noncommercial use.
+Automatic screen reading currently covers Chinese, Korean and Japanese.
 
 For a new installation, open LiveTranslate-0.6.9-Setup.exe and choose Install.
 Open LiveTranslate from the Start menu. You can also open LiveTranslate.exe
@@ -43,8 +61,8 @@ If GitHub is unavailable, the app reports that it could not check.
 4. To add written languages, open Settings and choose Get more text
    languages. The optional checked model downloads 601 MiB and works locally.
    It is licensed for noncommercial use. Restart the dashboard after setup.
-5. For PC VR, open VR captions. Select LiveTranslate VR captions in your
-   headset's PC desktop/window view, then pin it if your runtime supports it.
+5. For PC VR through SteamVR, start Native VR captions under Open captions.
+   Select the VRChat application for OCR and confirm its captured preview.
 
 See README.md for controls, VALIDATION.md for results and SOURCE-CHECKS.md
 for antivirus and model-source details.

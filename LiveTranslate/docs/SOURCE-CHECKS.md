@@ -1,5 +1,19 @@
 # Download sources and checks
 
+## 0.8.0 native SteamVR and additional OCR
+
+The native caption code uses Valve's versioned OpenVR overlay interface from the user's installed SteamVR runtime. No Valve executable or DLL is bundled or downloaded by this update. The loader locates a registered SteamVR runtime, verifies the installed DLL's Valve signature, and starts an overlay only after an explicit user action with SteamVR already running. It does not change the default VR runtime, Windows settings or VRChat files. API reference: https://github.com/ValveSoftware/openvr/blob/v2.5.1/headers/openvr_capi.h
+
+Optional German, Italian and Spanish OCR data come from the official Tesseract fast-model repository at the same pinned commit as the starter models: https://github.com/tesseract-ocr/tessdata_fast/tree/65727574dfcd264acbb0c3e07860e4e9e9b22185 . The app pins each byte count, SHA-256 and Git blob identity in `backend/extra_ocr_models.py`, verifies the downloaded bytes and runs the existing checked Microsoft Defender scanner before activation. These are app-local data files; Windows language packs are not installed or modified.
+
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| deu.traineddata | 1,525,436 | 19d219bbb6672c869d20a9636c6816a81eb9a71796cb93ebe0cb1530e2cdb22d |
+| ita.traineddata | 2,701,314 | b8f89e1e785118dac4d51ae042c029a64edb5c3ee42ef73027a6d412748d8827 |
+| spa.traineddata | 2,294,433 | 6f2e04d02774a18f01bed44b1111f2cd7f3ba7ac9dc4373cd3f898a40ea6b464 |
+
+Written translation continues to use the existing checked NLLB conversion and license described below. Its files and all three additional OCR files were prepared on Tokin's PC through the checked installers for testing. Each other PC needs its own model setup. Native headset output remains a physical field-test requirement.
+
 ## 0.6.7 reply practice
 
 The starter examples and pronunciation code ship in the app. Custom replies use the existing optional multilingual written model. Japanese and Mandarin reading tables are derived from the previously reviewed JMdict and CC-CEDICT data sources. See the headers in **backend/reply_ja_data.py** and **backend/reply_zh_data.py** and the upstream notices in **WORD-DATA-LICENSES.txt**.

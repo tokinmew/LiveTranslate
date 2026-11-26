@@ -147,13 +147,13 @@ internal static class QuietThemeCheck
             FullCheckbox(FindCheck(settings, "Keep the dashboard on top"), "Dashboard pin preference");
             Save(settings, Path.Combine(directory, "quiet-settings.png"));
             MethodInfo key = typeof(TabControl).GetMethod("ProcessCmdKey", Instance);
-            for (int index = 1; index <= 4; index++)
+            for (int index = 1; index <= tabs.TabCount; index++)
             {
                 tabs.Focus();
                 Message message = Message.Create(tabs.Handle, 0x100, new IntPtr((int)Keys.Tab), IntPtr.Zero);
                 object[] parameters = { message, Keys.Control | Keys.Tab };
                 key.Invoke(tabs, parameters); Application.DoEvents();
-                Check(tabs.SelectedIndex == index % 4, "Control+Tab selects the expected settings section " + (index % 4));
+                Check(tabs.SelectedIndex == index % tabs.TabCount, "Control+Tab selects the expected settings section " + (index % tabs.TabCount));
             }
             tabs.SelectedIndex = 3; Application.DoEvents();
             FullCheckbox(FindCheck(settings, "Read voice translations aloud"), "Spoken English preference");

@@ -1,6 +1,12 @@
-# LiveTranslate 0.7.2 for Windows 11 x64
+# LiveTranslate 0.8.0 for Windows 11 x64
 
-The 0.7.2 patch fixes the disposed capture-menu error when selecting a screen or drawing an area. Canceling a drawn area retains the previous capture target. Closing the dashboard also closes its selector safely. Minimized Settings restores on reopening, and a manual screen read gets the correct floating-caption status. The capture popup uses the dark app theme.
+The 0.8.0 feature update adds native SteamVR captions, application-window capture and a capture preview. Screen-reading status explains whether an image is unavailable, no supported text is confirmed, or translation succeeded. Speech recording retains longer pauses between words and prefers a quiet boundary when a phrase reaches its time limit.
+
+For Quest 3S with Virtual Desktop, run VRChat through **SteamVR**. Choose **Open captions → Native VR captions (SteamVR)** or **Settings → VR captions → Start VR captions**. Captions follow your view below centre and continue while the dashboard is minimized. Adjust width, distance and vertical offset in VR caption settings. This output uses SteamVR directly and does not need a wrist-attached desktop window or a second monitor. VDXR/OpenXR sessions and standalone VRChat do not have an overlay backend yet. Physical headset readability and reconnect behavior still need field verification.
+
+For text in VRChat, choose its application under **Capture area**, then use **Preview captured view** to confirm the image. Keep VRChat restored and rendering. Some GPU-rendered windows do not supply a background image; a failed preview reports this instead of substituting the desktop. Application capture reads the PC application's view, not a direct headset framebuffer. A native output overlay and a usable OCR input are separate requirements.
+
+Automatic screen reading covers Chinese, Korean and Japanese. Choose **German**, **Italian** or **Spanish** explicitly for those scripts. Under **Settings → Language files → Get more text languages**, the existing multilingual text model and matching German, Italian and Spanish OCR files can be prepared in the app's own data folder. They add about 607 MiB. This optional text model is for personal, noncommercial use. Prepare the files on each PC; a code update preserves models but does not bundle these downloads. Actual accents, arbitrary wording, small game fonts and busy backgrounds still require testing.
 
 The 0.7.1 patch gives selectors, settings tabs, input borders, numeric buttons and scrollbars a consistent dark surface. Focus remains visible, and the styling applies within LiveTranslate. Windows theme preferences are unchanged.
 
@@ -10,9 +16,9 @@ Use the sidebar to move between **Live session**, **Session history**, **Audio s
 
 **Audio setup** selects the actual Windows input and source language; translations currently target English. **Live session** also keeps screen watching, capture area, one-shot reading, pasted text, and reply practice available. **Pause translation** remembers the active inputs so they can resume; **End session** stops capture while keeping the transcript. **Save transcript** exports only when you choose a file. History is the current app session's newest 180 captions, not an automatic recording archive.
 
-**Open captions** opens a separate Windows caption window with original text, translation, pinning, pause, and dashboard controls. It can be selected through a PC headset's desktop view; headset pinning and VRChat readability depend on your runtime and still need a physical headset test.
+**Open captions** offers either desktop captions or native SteamVR captions. The desktop window keeps original text, translation, pinning, pause, and dashboard controls. Native VR captions display the real incoming caption state independently of that window.
 
-Open **Settings → Updates** for public GitHub updates. Major interface or feature releases start at 0.x.0; fixes for 0.7 use 0.7.1, 0.7.2, and so on.
+Open **Settings → Updates** for public GitHub updates. Major interface or feature releases start at 0.x.0; fixes for 0.8 use 0.8.1, 0.8.2, and so on.
 
 Open **LiveTranslate** from the Windows Start menu or double-click **LiveTranslate.exe** in the application folder. The installed folder groups maintenance commands in **scripts**, model and dependency configuration in **config**, and guides and notices in **docs**. Models, runtime files and language packs continue to use their own folders.
 
@@ -30,7 +36,7 @@ For custom replies, pronunciation support depends on the target and wording. If 
 
 Start desktop testing on a cropped, mixed-language panel. Leave a foreign line beside an English line, change the foreign wording, then remove it. Check placement, stable wording, response time, clearing, and whether the English line stays visible. Use a moving subtitle and your usual monitor scaling on a second pass.
 
-For a headset test, use the PC version of VRChat. Select the Windows playback device carrying the game, enable **Auto listen**, open **VR captions**, and pin the caption window from the headset dashboard if supported. The PC VR window already exists. Pinning during play, legibility and live voice latency still need physical headset tests. Desktop-mirror OCR and game audio are independent, so you can turn Watch screen off during a voice trial.
+For a headset test, use PC VRChat through SteamVR. Select the Windows playback device carrying the game, enable **Auto listen**, then start **Native VR captions (SteamVR)**. Minimize the dashboard and return to VRChat on the same monitor. Verify readable placement, expiry and reconnect behavior. For OCR, select the VRChat application and check its preview first. Screen capture and game audio are independent, so turn Watch screen off during a voice-only trial.
 
 ## Reading live captions
 
@@ -38,7 +44,7 @@ Choose the source language and turn on the inputs you want. **Watch screen** pla
 
 The **Live captions** transcript follows new translations until you scroll up or select text to copy. Scroll back to the bottom to follow the conversation again. The dashboard retains the newest 180 entries. Use **Source text** to check a translation against the original.
 
-Open **VR captions** to view translations in a separate window. Long captions advance through their lines automatically. Interacting with the text lets you read at your own pace. If a selected monitor disappears, screen capture waits for that display. Choose a different capture area to switch immediately.
+Use **Open captions** to choose the caption display. Long captions page through their text automatically. The desktop caption window also supports manual reading controls. If a selected monitor disappears, screen capture waits for that display; an unavailable application reports that source instead of switching to another window. Choose a different capture target to switch.
 
 ## Spoken English and updates
 
@@ -58,11 +64,11 @@ Open the Windows setup application and select **Install**. Open **LiveTranslate*
 | --- | --- |
 | Screen | **Watch screen** starts on the primary display. Use **Capture area** for another display, a subtitle region or a vertical Japanese column. Select a specific source language for expanded screen languages. Automatic full-display reading rejects ambiguous isolated symbols; use a selected area or specific language for a real one-character label. Text over clothing or other patterns can still be missed or misread. |
 | Written text | Choose the source language and paste a passage. English-only lines are filtered. Short words shared with English can be skipped. |
-| Games, videos and calls | Choose **Computer audio**, then turn on **Auto listen**. If the meter stays quiet, choose the output actually used by the game or chat app. |
+| Games, videos and calls | Choose **Computer audio**, then turn on **Auto listen**. If speech is not received, choose the output actually used by the game or chat app. |
 | Voices in the room | Choose your microphone or **Computer + microphone**. Turn **Auto listen** off to release the inputs. |
-| PC VR | Open **VR captions**. Inside the headset's PC desktop or window view, select **LiveTranslate VR captions** and pin it if the runtime offers pinning. For screen translation select a desktop game mirror. For voice translation select the playback device carrying the VR game or chat. |
+| PC VR | Run VRChat through SteamVR, then **Open captions → Native VR captions (SteamVR)**. Minimize the dashboard and keep VRChat rendering. Choose its application and preview it for OCR; choose the playback device carrying the game for audio. |
 
-The desktop overlay draws English inside the detected words' coordinates and samples the background around the original lettering. Long translations, animation and imprecise text boxes can affect its appearance. Speech appears separately. The transcript keeps the full text. In VR the caption window uses the placement you choose in your PC dashboard. Headset-only pixels and standalone Quest apps require a different capture path.
+The desktop overlay draws English inside the detected words' coordinates and samples the background around the original lettering. Long translations, animation and imprecise text boxes can affect its appearance. Speech appears separately. The transcript keeps the full text. Native SteamVR captions use the placement set in VR caption settings. Headset-only pixels and standalone Quest apps require a different capture path.
 
 ## Expand your languages
 

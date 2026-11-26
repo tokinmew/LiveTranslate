@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.7.2.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.7.2.0")]
+[assembly: System.Reflection.AssemblyVersion("0.8.0.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.0.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -198,6 +198,7 @@ namespace LiveTranslate
             BuildSettings();
             BuildUpdatesTab();
             BuildSpokenTab();
+            BuildNativeVrTab();
             BuildUi();
             ResumeLayout(true);
             Load += delegate { FitToDisplay(this); };
@@ -528,6 +529,8 @@ namespace LiveTranslate
 
         private Rectangle CaptureBounds()
         {
+            if (captureApplication != null)
+                return ApplicationCapture.Bounds(captureApplication);
             if (selectedRegion.HasValue)
             {
                 Rectangle region = selectedRegion.Value;
@@ -547,7 +550,9 @@ namespace LiveTranslate
             string source = ScreenProfile();
             Dictionary<string, object> region = !selectedRegion.HasValue && targetDisplay == null ? Dict("monitor", "primary") :
                 Dict("left", r.Left, "top", r.Top, "width", r.Width, "height", r.Height);
-            if (!selectedRegion.HasValue && targetDisplay != null)
+            if (captureApplication != null)
+                region = Dict("window", captureApplication.Handle.ToInt64(), "process", (long)captureApplication.ProcessId);
+            else if (!selectedRegion.HasValue && targetDisplay != null)
                 region["full_display"] = true;
             // The backend also enumerates source-caption windows on this GUI thread.
             var exclusions = new List<long> { Handle.ToInt64(), settingsForm.Handle.ToInt64(), captionOverlay.CaptureWindowId };
@@ -571,7 +576,7 @@ namespace LiveTranslate
 
             if (CaptureBounds().IsEmpty)
             {
-                screenStateLabel.Text = selectedRegion.HasValue
+                screenStateLabel.Text = captureApplication != null ? "Restore the selected application window, or choose its new window if it has closed." : selectedRegion.HasValue
                     ? "Waiting for the selected area. Restore the display or choose a new area."
                     : "Waiting for the selected display. Reconnect it or choose another display.";
                 return;
@@ -681,6 +686,8 @@ namespace LiveTranslate
                     {
                         selectedRegion = picker.Selection;
                         targetDisplay = null;
+                        captureApplication = null;
+                        InvalidateCapturePreview();
                         UpdateRegionLabel();
                     }
                 }
@@ -711,7 +718,7 @@ namespace LiveTranslate
             foreach (ToolStripItem item in previous) item.Dispose();
             ToolStripMenuItem primary = new ToolStripMenuItem("Primary display", null,
                 delegate { QueueCaptureTarget(delegate { SelectDisplay(null); }); });
-            primary.Checked = !selectedRegion.HasValue && targetDisplay == null;
+            primary.Checked = captureApplication == null && !selectedRegion.HasValue && targetDisplay == null;
             menu.Items.Add(primary);
             int number = 0;
             foreach (Screen screen in Screen.AllScreens)
@@ -723,9 +730,10 @@ namespace LiveTranslate
                 string title = String.Format("Display {0} ({1} × {2})", number, screen.Bounds.Width, screen.Bounds.Height);
                 ToolStripMenuItem item = new ToolStripMenuItem(title, null,
                     delegate { QueueCaptureTarget(delegate { SelectDisplay(device); }); });
-                item.Checked = !selectedRegion.HasValue && targetDisplay == device;
+                item.Checked = captureApplication == null && !selectedRegion.HasValue && targetDisplay == device;
                 menu.Items.Add(item);
             }
+            AddApplicationCaptureItems(menu);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("Draw an area…", null,
                 delegate { QueueCaptureTarget(delegate { SelectRegion(null, EventArgs.Empty); }); });
@@ -754,6 +762,8 @@ namespace LiveTranslate
 
         private void SelectDisplay(string device)
         {
+            InvalidateCapturePreview();
+            captureApplication = null;
             selectedRegion = null;
             targetDisplay = device;
             UpdateRegionLabel();
@@ -763,6 +773,11 @@ namespace LiveTranslate
 
         private void UpdateRegionLabel()
         {
+            if (captureApplication != null)
+            {
+                regionLabel.Text = "Application · " + captureApplication.Title + (CaptureBounds().IsEmpty ? " (restore window)" : "");
+                return;
+            }
             if (CaptureBounds().IsEmpty)
                 regionLabel.Text = selectedRegion.HasValue ? "Selected area unavailable" : "Selected display unavailable";
             else if (selectedRegion.HasValue)
@@ -907,6 +922,11 @@ namespace LiveTranslate
             {
                 if (request != null && request.Command == "practice_reply")
                     FinishPracticeReply(responseId, message);
+                return;
+            }
+            if (type == "screen_preview" || (request != null && request.Command == "preview_screen"))
+            {
+                if (request != null && request.Command == "preview_screen") FinishCapturePreview(responseId, message);
                 return;
             }
             if (channel == "" && (type == "audio" || type == "screen" || type == "screen_once"))
@@ -1078,7 +1098,7 @@ namespace LiveTranslate
                         ClearOverlayChannel("screen");
                         SetSwitch(screenToggle, screenArmed);
                         if (screenArmed)
-                            screenStateLabel.Text = "Display unavailable. Watching will retry.";
+                            screenStateLabel.Text = (info == "" ? "Capture source unavailable." : info) + " Watching will retry.";
                     }
                 }
                 else if (channel == "screen_once" && (state == "error" || state == "stopped"))
@@ -1720,6 +1740,7 @@ namespace LiveTranslate
             }
 
             closing = true;
+            StopNativeVrCaptions("VR captions are off.");
             CloseVrCaptions();
             readinessTimer.Stop();
             readinessTimer.Dispose();

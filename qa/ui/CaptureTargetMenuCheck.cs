@@ -269,7 +269,9 @@ internal static class CaptureTargetMenuCheck
                 List<Screen> secondary = new List<Screen>();
                 foreach (Screen display in Screen.AllScreens) if (!display.Primary) secondary.Add(display);
                 menu = Open(form);
-                Check(menu.Items.Count == secondary.Count + 3, "The menu reflects currently connected non-primary displays");
+                Check(menu.Items.Count == secondary.Count + 5, "The menu reflects connected displays plus application selection and capture preview");
+                Check(menu.Items[secondary.Count + 1].Text == "Application window (single monitor)" &&
+                    menu.Items[secondary.Count + 2].Text == "Preview captured view…", "Single-monitor application capture and honest source preview are available");
                 menu.Close(); Pump();
                 foreach (Screen display in secondary)
                 {

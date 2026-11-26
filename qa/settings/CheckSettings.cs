@@ -77,8 +77,8 @@ internal static class CheckSettings
         {
             var tabs = Field<TabControl>(app, "settingsTabs");
             form.Opacity = 0; form.Show(); Layout(form);
-            Check(tabs.TabCount == 4, "all four settings sections available");
-            string[] files = { "recognition", "language-files", "updates", "voice" };
+            Check(tabs.TabCount == 5 && tabs.TabPages[4].Text == "VR captions", "all five settings sections available, including native VR");
+            string[] files = { "recognition", "language-files", "updates", "voice", "native-vr" };
             for (int i=0;i<tabs.TabCount;i++)
             {
                 tabs.SelectedIndex=i; Application.DoEvents();

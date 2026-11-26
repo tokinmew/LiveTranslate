@@ -202,7 +202,7 @@ namespace LiveTranslate
             sessionPauseButton.Width = 183;
             sessionEndButton = SessionButton("End session", delegate { EndSession(); }, false);
             sessionEndButton.Width = 132;
-            Button captions = sessionCaptionButton = SessionButton("Open captions", delegate { OpenVrCaptions(); }, false);
+            Button captions = sessionCaptionButton = SessionButton("Open captions", delegate { ShowCaptionOptions(); }, false);
             captions.Width = 127;
             foreach (Button button in new[] { sessionPauseButton, sessionEndButton, captions })
             {
@@ -332,9 +332,9 @@ namespace LiveTranslate
         private void BuildSettingsSessionPage()
         {
             Panel page = AddSessionPage("settings");
-            TableLayoutPanel layout = Rows(90, 150, 150, 90);
+            TableLayoutPanel layout = Rows(90, 150, 150, 150, 90);
             layout.Dock = DockStyle.Top;
-            layout.Height = 480;
+            layout.Height = 630;
             ModernCard overview = LightCard(paper, new Padding(18));
             TableLayoutPanel overviewRows = Rows(30, 0);
             overviewRows.Controls.Add(Title("Your local translation workspace", paperInk, 16F), 0, 0);
@@ -357,10 +357,17 @@ namespace LiveTranslate
             second.Controls.Add(SessionSettingsCard("App updates", "Version " + CurrentUpdateVersion() + " · signed updates from public GitHub Releases.",
                 "Check app updates", delegate { OpenSettingsSection("Updates"); }, false), 1, 0);
             layout.Controls.Add(second, 0, 2);
+            TableLayoutPanel third = SessionColumns(50, 50);
+            third.Padding = new Padding(0, 12, 0, 0);
+            third.Controls.Add(SessionSettingsCard("VR captions", "Native captions inside SteamVR, with placement controls. A single monitor is enough.",
+                "Open VR caption settings", delegate { OpenSettingsSection("VR captions"); }, true), 0, 0);
+            third.Controls.Add(SessionSettingsCard("Screen reading", "Choose an application or screen area, then preview the capture before watching for text.",
+                "Open screen controls", delegate { ShowSessionPage("live"); if (!sessionDetailsOpen) ToggleSessionDetails(); }, false), 1, 0);
+            layout.Controls.Add(third, 0, 3);
             Label local = Note("Translation runs locally. Internet access is used for optional downloads and app update checks.\nCaptions stay in this session until you explicitly save a transcript.", secondaryInk);
             local.Padding = new Padding(4, 12, 4, 0);
             local.Font = new Font(Font.FontFamily, 9F);
-            layout.Controls.Add(local, 0, 3);
+            layout.Controls.Add(local, 0, 4);
             page.Controls.Add(layout);
         }
 

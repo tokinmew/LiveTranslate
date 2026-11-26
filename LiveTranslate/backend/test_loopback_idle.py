@@ -21,25 +21,25 @@ class LoopbackIdleTests(unittest.TestCase):
     def test_observed_silence_is_part_of_the_loopback_pause(self):
         self.feed(0, 80, 8)
         self.feed(80, 240, 0)
-        self.buf.flush_idle(.470)
+        self.buf.flush_idle(.830)
         self.assertFalse(self.output)
-        self.buf.flush_idle(.490)
+        self.buf.flush_idle(.850)
         self.assertEqual([self.pcm(80, 8) + self.pcm(240)], self.output)
 
     def test_idle_after_voice_still_uses_full_driver_timeout(self):
         self.feed(0, 80, 8)
-        self.buf.flush_idle(.44)
+        self.buf.flush_idle(.80)
         self.assertFalse(self.output)
-        self.buf.flush_idle(.48)
+        self.buf.flush_idle(.84)
         self.assertEqual([self.pcm(80, 8)], self.output)
 
     def test_last_partial_voiced_frame_gets_full_timeout(self):
         self.feed(0, 80, 8)
         self.feed(80, 240, 0)
         self.buf.add(self.pcm(10, 10), .330)
-        self.buf.flush_idle(.55)
+        self.buf.flush_idle(.91)
         self.assertFalse(self.output)
-        self.buf.flush_idle(.74)
+        self.buf.flush_idle(1.10)
         self.assertEqual([self.pcm(80, 8) + self.pcm(240) + self.pcm(10, 10)], self.output)
 
     def test_contiguous_speech_delivered_in_a_large_callback_stays_together(self):
@@ -47,15 +47,15 @@ class LoopbackIdleTests(unittest.TestCase):
         self.feed(80, 320, 0)
         self.buf.add(self.pcm(240, 10), .640)
         self.assertFalse(self.output)
-        self.buf.flush_idle(1.04)
+        self.buf.flush_idle(1.40)
         self.assertEqual([self.pcm(80, 8) + self.pcm(320) + self.pcm(240, 10)], self.output)
 
     def test_long_driver_packets_get_a_grace_period_before_idle(self):
         self.feed(0, 100, 8, 100)
         self.feed(100, 300, 0, 100)
-        self.buf.flush_idle(.52)
+        self.buf.flush_idle(.88)
         self.assertFalse(self.output)
-        self.buf.flush_idle(.60)
+        self.buf.flush_idle(.96)
         self.assertEqual([self.pcm(100, 8) + self.pcm(300)], self.output)
 
     def test_short_gap_inside_one_word_does_not_duplicate_the_caption(self):
@@ -64,7 +64,7 @@ class LoopbackIdleTests(unittest.TestCase):
         self.buf.flush_idle(.3)
         self.buf.add(self.pcm(80, 8), .40)
         self.assertFalse(self.output)
-        self.buf.flush_idle(.8)
+        self.buf.flush_idle(1.2)
         self.assertEqual([self.pcm(60, 10) + self.pcm(140) + self.pcm(80, 8)], self.output)
 
     def test_minimum_length_and_very_quiet_replies_unchanged(self):
@@ -73,5 +73,5 @@ class LoopbackIdleTests(unittest.TestCase):
                 self.setUp()
                 self.feed(0, voiced, level)
                 self.feed(voiced, 220, 0)
-                self.buf.flush_idle(.8)
+                self.buf.flush_idle(1.2)
                 self.assertEqual(expected, len(self.output))

@@ -124,7 +124,7 @@ class PcmTests(unittest.TestCase):
         result = []
         b = PhraseBuffer(16000,1,5,result.append)
         speech = struct.pack("<h",60) * 8000
-        silence = b"\0\0"*8000
+        silence = b"\0\0"*14400
         b.add(silence + speech + silence + speech + silence, now=1)
         self.assertEqual(2,len(result))
         for data in result:
@@ -153,8 +153,8 @@ class PcmTests(unittest.TestCase):
         first = struct.pack("<h", 90) * 1481
         second = struct.pack("<h", 40) * 1701
         b.add(first + b"\xff", now=1)
-        b.add(second, now=1.6)
-        b.flush_idle(2)
+        b.add(second, now=1.9)
+        b.flush_idle(2.8)
         self.assertEqual([first, second], result)
 
     def test_single_click_and_quiet_background_do_not_enter_queue(self):

@@ -6,6 +6,7 @@ import math
 import re
 
 from multilingual_speech import CJK_SPEECH, DIRECT_SPEECH, SPOKEN_LANGUAGES, translate_spans
+from audio_chunks import SPEECH_PAUSE_MS
 
 _HAN = r"\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0002ebef"
 _SCRIPTS = {
@@ -99,7 +100,7 @@ def _speech_spans(samples):
     # little release time, then return offsets into the original recording.
     tail = 3200
     options = VadOptions(threshold=0.40, min_speech_duration_ms=48,
-                         min_silence_duration_ms=380, speech_pad_ms=150)
+                         min_silence_duration_ms=SPEECH_PAUSE_MS, speech_pad_ms=150)
     lead = 0
     spans = get_speech_timestamps(np.pad(samples, (lead, tail)), options)
     if not spans and len(samples) <= 35200:

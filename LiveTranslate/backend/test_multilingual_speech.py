@@ -85,6 +85,31 @@ class MultilingualSpeechTests(unittest.TestCase):
                 self.assertEqual([], list(speech_captions(model, self.audio, selected)))
                 self.assertEqual(1, model.transcribe.call_count)
 
+    def test_full_foreign_sentences_use_auto_and_selected_profiles_without_phrase_lists(self):
+        # These are routing checks with a controlled acoustic decoder, not
+        # evidence of real-speaker or accent recognition accuracy.
+        for language, original in (
+            ("zh", "今天下午请打开窗户。"), ("ja", "窓を開けてください。"),
+            ("ko", "창문을 열어 주세요."), ("de", "Bitte öffne das Fenster."),
+            ("it", "Per favore apri la finestra."), ("es", "Por favor abre la ventana.")):
+            for selected in ("auto", language):
+                with self.subTest(language=language, selected=selected):
+                    english = "Please open the window."
+                    model = decoder(detection(language), original, english)
+                    captions = list(speech_captions(model, self.audio, selected))
+                    self.assertEqual([{"language": language, "original": original, "text": english}], captions)
+                    self.assertEqual(2, model.transcribe.call_count)
+
+    def test_selected_test_languages_keep_english_and_silence_out(self):
+        for selected in ("zh", "ja", "ko", "de", "it", "es"):
+            with self.subTest(selected=selected):
+                model = decoder(detection("en"), "Please open the window.", "Forbidden.")
+                self.assertEqual([], list(speech_captions(model, self.audio, selected)))
+                self.assertEqual(1, model.transcribe.call_count)
+                silent_model = Mock(side_effect=AssertionError("silent audio decoded"))
+                self.assertEqual([], list(speech_captions(silent_model, np.zeros(16000, np.float32), selected)))
+                silent_model.transcribe.assert_not_called()
+
     def test_foreign_detection_with_english_or_wrong_script_never_translates(self):
         for lang, text in (("es", "No."), ("fr", "Good morning."), ("de", "Please open the door."),
                            ("es", "Open Settings"), ("ru", "Hello"), ("ar", "1234"),

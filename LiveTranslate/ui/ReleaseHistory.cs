@@ -25,6 +25,11 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.8.0", "Native SteamVR captions and application capture",
+                "Native SteamVR captions display translations inside PC VR while the dashboard is minimized. Choose them under Open captions or Settings, VR captions; adjust their width, distance and vertical position. No attached desktop window or second monitor is required for the caption display.",
+                "Screen capture can target an application window. Preview capture shows the actual image being read; unavailable or minimized windows report a capture problem rather than silently reading the desktop. Some games do not supply background window images and must remain rendering.",
+                "Screen-reading status distinguishes finding no supported text from successful recognition. Screen and text language files are still required. Direct headset-view capture and standalone headset overlays are not included.",
+                "Speech capture keeps longer pauses between words together to retain context for slower speech. Model accuracy, accents, arbitrary words and real VRChat audio still require field retests."),
             new ReleaseNote("0.7.2", "Capture area menu no longer closes with an error",
                 "Fixed the disposed ContextMenuStrip error when choosing a display or drawing a capture area. The capture menu now lives with the dashboard, and selection actions wait for menu dismissal to finish.",
                 "Canceling a drawn area retains the previous target. Closing the dashboard during a drawing also closes its selector safely.",

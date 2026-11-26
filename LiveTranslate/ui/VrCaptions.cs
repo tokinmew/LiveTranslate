@@ -66,12 +66,14 @@ namespace LiveTranslate
         {
             vrCaptionState.Present(kind, text, original, sourceLabel, VrCaptionWindow.Clock.ElapsedMilliseconds);
             if (vrCaptionWindow != null) vrCaptionWindow.RefreshCaptions();
+            RefreshNativeVrCaption();
         }
 
         private void ClearVrCaption(string kind)
         {
             vrCaptionState.Clear(kind);
             if (vrCaptionWindow != null) vrCaptionWindow.RefreshCaptions();
+            RefreshNativeVrCaption();
         }
 
         private long VrCaptionHandle()
