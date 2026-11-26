@@ -29,6 +29,7 @@ OCR_CODES = frozenset("afr amh ara asm aze aze_cyrl bel ben bod bos bre bul cat 
 AUTO_OCR_ORDER = ("chi_tra", "chi_sim", "kor", "jpn", "eng")
 PRIORITY_OCR = frozenset(("chi_tra", "chi_sim", "kor", "jpn", "jpn_vert"))
 _CAPTURE_LOCK = threading.Lock()
+_CAPTURE_INTENT = threading.local()
 
 class ScreenCaptureUnavailable(RuntimeError):
     """Screen pixels temporarily unavailable after desktop/display changes."""
@@ -361,7 +362,18 @@ class ScreenEngine:
     def recognize_watched(self, region, language, executable, profile, tracked_boxes, **options):
         return self.recognize(region, language, executable, tracking=(profile, tracked_boxes), source=profile, **options)
 
-    def recognize(self, region: dict, language: str = "auto", executable: str = "", exclude_windows=(), tracking=None, source="auto") -> str:
+    @staticmethod
+    @contextmanager
+    def manual_capture():
+        """A user-requested sample may briefly clear our own dashboard pixels."""
+        previous = getattr(_CAPTURE_INTENT, "manual", False)
+        _CAPTURE_INTENT.manual = True
+        try:
+            yield
+        finally:
+            _CAPTURE_INTENT.manual = previous
+
+    def recognize(self, region: dict, language: str = "auto", executable: str = "", exclude_windows=(), tracking=None, source="auto", _frame=None) -> str:
         if language == "auto":
             language = self.auto_language(executable)
         selected = language.split("+")
@@ -402,7 +414,7 @@ class ScreenEngine:
                 if missing:
                     raise RuntimeError("Missing OCR languages in the selected engine: " + ", ".join(sorted(missing)))
         try:
-            image = self._capture(rect, exclude_windows) if exclude_windows else self._capture(rect)
+            image = _frame if _frame is not None else self._capture(rect, exclude_windows) if exclude_windows else self._capture(rect)
         except OSError as exc:
             raise ScreenCaptureUnavailable("Windows could not capture this display. Reconnect the display and try again.") from exc
         from screen_geometry import LocatedText, capture_map, line_regions, union
@@ -410,6 +422,8 @@ class ScreenEngine:
         capture_map(image, rect)
         cover_frame = image
         frame_info = image.info if isinstance(getattr(image, "info", None), dict) else {}
+        capture_info = dict(frame_info.get("capture_info", {}))
+        raw_reads = []
         rgb_source = frame_info.get("glyph_source")
         signature_frame = rgb_source[0] if rgb_source is not None else image
         # Skip both OCR engines on unchanged pixels. Store only a digest and
@@ -420,11 +434,16 @@ class ScreenEngine:
                        hashlib.blake2b(signature_frame.tobytes(), digest_size=16).digest())
         if (self._last_frame is not None and self._last_frame[0] == signature
                 and time.monotonic() < self._last_frame[2]):
-            return sample_frame(self._last_frame[1], rgb_source, tracking)
+            cached = sample_frame(self._last_frame[1], rgb_source, tracking)
+            cached.capture_info = capture_info
+            return cached
         def read(frame, codes, mode, timeout, shared=None):
             if command:
                 try:
-                    return self._recognize_cli(command,frame,codes,mode,local_ready,timeout)
+                    value = self._recognize_cli(command,frame,codes,mode,local_ready,timeout)
+                    if codes == language and value and len(raw_reads) < 8:
+                        raw_reads.append(value[0][:2000])
+                    return value
                 except subprocess.TimeoutExpired:
                     return None
             ctx = nullcontext(shared) if shared is not None else self._reader(native, codes, mode, codes == language)
@@ -433,6 +452,8 @@ class ScreenEngine:
                 if not api.Recognize(timeout=round(timeout*1000)):
                     return None
                 text=api.GetUTF8Text().strip()
+                if codes == language and text and len(raw_reads) < 8:
+                    raw_reads.append(text[:2000])
                 return text, api.GetTSVText(0) if extended or has_target_script(text) else ""
 
         def read_row(frame, budget, shared=None):
@@ -455,6 +476,8 @@ class ScreenEngine:
             regions = horizontal_regions + [(value, [(0,len(value),box)] if box else [])
                                             for value, box in vertical_positions]
             text = LocatedText(text, regions)
+            text.capture_info = capture_info
+            text.raw_ocr = "\n".join(dict.fromkeys(raw_reads))[:4000]
             if extended:
                 text.verified_source = source
             if regions and rgb_source is not None:
@@ -474,6 +497,7 @@ class ScreenEngine:
             from ocr_guard import parse_tsv
             if tag:
                 words = self.windows.read(image, tag, getattr(self._watch, "windows", None))
+                raw_reads.append(" ".join(word.text for word in words)[:4000])
             else:
                 primary = read(image, language, psm, 8)
                 if primary is None:
@@ -569,7 +593,10 @@ class ScreenEngine:
             from ocr_guard import verify_hangul_suffixes
             observations = verify_hangul_suffixes(image,raw,tsv,observations,read)
         positions = []
-        if full_display and source == "auto":
+        # A language selection narrows the recognizer; it is not evidence that
+        # toolbar strokes or English UI are foreign text. Keep full-scene proof
+        # for both Auto and selected CJK, while explicit crops retain label mode.
+        if full_display:
             result = filter_words(raw, tsv, observations, image, positions, desktop_auto=True)
         else:
             result = filter_words(raw, tsv, observations, image, positions)
@@ -578,7 +605,7 @@ class ScreenEngine:
             # A few guessed kana from a page made entirely of horizontal rows
             # are not evidence of a vertical Japanese caption.
             result = ""
-        if full_display and source == "auto" and result:
+        if full_display and result:
             if self._desktop_proof_state is None or self._desktop_proof_state[0] != signature:
                 self._desktop_proof_state = (signature, {})
             proof_state = self._desktop_proof_state[1]
@@ -597,7 +624,7 @@ class ScreenEngine:
                 located = {line for line, _ in positions}
                 result = "\n".join(line for line in result.splitlines() if line in located)
             result = filter_desktop_fragments(result, positions, anchors)
-        local_short = {line for line in result.splitlines() if full_display and source == "auto"
+        local_short = {line for line in result.splitlines() if full_display
                        and sum(has_target_script(ch) for ch in line) <= 2}
         weak = {line for line in result.splitlines() if weak_foreign_line(line) and line not in local_short}
         if result and ((observations is None and any(line not in local_short for line in result.splitlines())) or weak):
@@ -701,6 +728,8 @@ class ScreenEngine:
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
             if pid.value not in (os.getppid(), os.getpid()):
                 continue
+            if user32.GetPropW(hwnd, "LiveTranslate.ManualSampleHidden.v1"):
+                continue  # The coordinated manual sample temporarily clears this app-owned window.
             if not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
                 continue
             cloaked = wintypes.DWORD(0)
@@ -726,6 +755,29 @@ class ScreenEngine:
                 image.paste(fill, box)
 
     @staticmethod
+    def _masked_percent(rect, bounds):
+        """Measure a union, not a sum: overlapping app windows count once."""
+        right, bottom = rect["left"] + rect["width"], rect["top"] + rect["height"]
+        boxes = [(max(rect["left"], l), max(rect["top"], t), min(right, r), min(bottom, b))
+                 for l, t, r, b in bounds]
+        boxes = [box for box in boxes if box[0] < box[2] and box[1] < box[3]]
+        edges = sorted({edge for box in boxes for edge in (box[0], box[2])})
+        area = 0
+        for left, edge in zip(edges, edges[1:]):
+            intervals = sorted((t, b) for l, t, r, b in boxes if l < edge and r > left)
+            end = None
+            total = 0
+            for top, bottom in intervals:
+                if end is None or top > end:
+                    total += bottom - top
+                    end = bottom
+                elif bottom > end:
+                    total += bottom - end
+                    end = bottom
+            area += (edge - left) * total
+        return round(100 * area / (rect["width"] * rect["height"]), 1)
+
+    @staticmethod
     def _sample_messages(handles):
         """Locate only our dashboard and send bounded capture-lease messages."""
         if not handles or os.name != "nt":
@@ -749,14 +801,14 @@ class ScreenEngine:
 
     @staticmethod
     @contextmanager
-    def _sample_lease(handles):
+    def _sample_lease(handles, manual=False):
         exchange = ScreenEngine._sample_messages(handles)
         if exchange is None:
             yield False
             return
         token = secrets.randbelow(0x7fffffff) + 1
-        begin = 0x8241
-        end = begin + 1
+        begin = 0x8243 if manual else 0x8241
+        end = 0x8242
         if not exchange(begin, token):
             exchange(end, token)  # A slow UI may have received Begin after the timeout.
             raise ScreenCaptureUnavailable("The caption overlay could not prepare a clean screen frame.")
@@ -775,10 +827,10 @@ class ScreenEngine:
         # Read once, preview and watching can arrive on different worker threads.
         # Keep each capture lease intact until its frame has been returned.
         with _CAPTURE_LOCK:
-            return ScreenEngine._capture_frame(rect, exclude_windows)
+            return ScreenEngine._capture_frame(rect, exclude_windows, manual=bool(getattr(_CAPTURE_INTENT, "manual", False)))
 
     @staticmethod
-    def _capture_frame(rect, exclude_windows=()):
+    def _capture_frame(rect, exclude_windows=(), manual=False):
         if "window" in rect:
             from window_capture import capture_application
             from PIL import ImageOps, Image
@@ -795,6 +847,7 @@ class ScreenEngine:
             from screen_geometry import capture_map
             capture_map(image, bounds)
             image.info["glyph_source"] = (original, bounds["left"], bounds["top"])
+            image.info["capture_info"] = dict(source="application", width=original.width, height=original.height, masked_percent=0)
             return image
         import mss
         from mss.exception import ScreenShotError
@@ -803,7 +856,7 @@ class ScreenEngine:
             with mss.mss() as capture:
                 if rect.get("monitor") == "primary":
                     rect = ScreenEngine.primary_region(capture.monitors)
-                with ScreenEngine._sample_lease(exclude_windows) as coordinated:
+                with ScreenEngine._sample_lease(exclude_windows, manual=manual) as coordinated:
                     # The dashboard guards current and newly-created source labels
                     # until End. An uncoordinated legacy UI still needs its masks.
                     def visible_bounds():
@@ -811,6 +864,10 @@ class ScreenEngine:
                             return ScreenEngine._visible_bounds(exclude_windows, include_source_windows=False)
                         return ScreenEngine._visible_bounds(exclude_windows)
                     bounds = visible_bounds()
+                    covered = ScreenEngine._masked_percent(rect, bounds)
+                    if covered >= 95:
+                        raise ScreenCaptureUnavailable(
+                            "The selected area is covered by a LiveTranslate window. Minimize the dashboard, choose Application window, or use Read once for a clean manual sample.")
                     shot = capture.grab({key: rect[key] for key in ("left", "top", "width", "height")})
                     if exclude_windows:
                         bounds.extend(visible_bounds())
@@ -824,9 +881,11 @@ class ScreenEngine:
         from screen_geometry import capture_map
         capture_map(image, rect)
         image.info["glyph_source"] = (original, rect["left"], rect["top"])
+        image.info["capture_info"] = dict(source="display", width=original.width, height=original.height,
+                                           masked_percent=ScreenEngine._masked_percent(rect, bounds), manual=manual)
         return image
 
-    def preview(self, region, exclude_windows=()):
+    def preview(self, region, exclude_windows=(), language=None, executable="", source="auto"):
         """Explicit, bounded in-memory view of precisely the chosen OCR source."""
         import base64
         from PIL import Image
@@ -834,12 +893,21 @@ class ScreenEngine:
         if (not isinstance(exclude_windows, (list, tuple)) or len(exclude_windows) > 16
                 or any(type(handle) is not int or not 0 < handle < 2**64 for handle in exclude_windows)):
             raise ValueError("Invalid window exclusions for capture preview.")
-        image = self._capture(rect, exclude_windows)
+        with self.manual_capture():
+            image = self._capture(rect, exclude_windows)
         original = image.info.get("glyph_source", (image,))[0]
         width, height = original.size
         thumb = original.convert("RGB")
         thumb.thumbnail((960, 540), Image.Resampling.LANCZOS)
         data = io.BytesIO()
         thumb.save(data, format="JPEG", quality=80)
+        details = dict(image.info.get("capture_info", {}))
+        if language is not None:
+            try:
+                observed = self.recognize(rect, language, executable, source=source, _frame=image)
+                details.update(raw_ocr=getattr(observed, "raw_ocr", ""), accepted_ocr=str(observed)[:4000],
+                               ocr_language=language, selected_language=source)
+            except (OSError, RuntimeError, ValueError) as exc:
+                details["recognition_error"] = str(exc)[:1000]
         return dict(image=base64.b64encode(data.getvalue()).decode("ascii"), width=width, height=height,
-                    source="application" if "window" in rect else "display")
+                    source="application" if "window" in rect else "display", diagnostics=details)

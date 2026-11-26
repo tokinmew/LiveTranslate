@@ -141,6 +141,52 @@ class ScreenTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "jpn"):
                 self.engine.recognize(self.region, "jpn")
 
+    def test_selected_cjk_full_display_cannot_bypass_icon_proof(self):
+        from PIL import Image, ImageDraw
+        frame = Image.new("L", (600, 180), 255)
+        ImageDraw.Draw(frame).line((20, 10, 20, 30), fill=0, width=2)
+        ImageDraw.Draw(frame).line((10, 20, 30, 20), fill=0, width=2)
+        frame.info["desktop_map"] = (0, 0, 1, 1)
+        frame.info["glyph_source"] = (frame.convert("RGB"), 0, 0)
+        api = MagicMock()
+        api.__enter__.return_value = api
+        api.Recognize.return_value = True
+        api.GetUTF8Text.return_value = "十"
+        api.GetTSVText.return_value = "5\t1\t1\t1\t1\t1\t10\t10\t20\t20\t96\t十\n"
+        native = SimpleNamespace(PyTessBaseAPI=MagicMock(return_value=api))
+        for code in ("jpn", "kor", "chi_sim", "chi_tra"):
+            self.add_pack(code)
+        with patch.object(self.engine, "_native_engine", return_value=native), \
+             patch.object(self.engine, "_capture", return_value=frame), \
+             patch.object(self.engine.english_guard, "detect", return_value=[]), \
+             patch("scene_text.textured_rows", return_value=None), \
+             patch("screen_engine.plain_horizontal_rows", return_value=[]):
+            for source, code in (("ja", "jpn"), ("ko", "kor"), ("zh", "chi_sim"), ("zt", "chi_tra")):
+                with self.subTest(source=source):
+                    region = dict(left=0, top=0, width=600, height=180, full_display=True)
+                    self.assertEqual("", self.engine.recognize_watched(region, code, "", source, ()))
+
+    def test_deliberately_selected_crop_keeps_explicit_short_sign_path(self):
+        from PIL import Image, ImageDraw
+        self.add_pack("jpn")
+        frame = Image.new("L", (140, 70), 255)
+        ImageDraw.Draw(frame).rectangle((10, 10, 29, 29), outline=0, width=2)
+        frame.info["desktop_map"] = (0, 0, 1, 1)
+        api = MagicMock()
+        api.__enter__.return_value = api
+        api.Recognize.return_value = True
+        api.GetUTF8Text.return_value = "口"
+        api.GetTSVText.return_value = "5\t1\t1\t1\t1\t1\t10\t10\t20\t20\t96\t口\n"
+        native = SimpleNamespace(PyTessBaseAPI=MagicMock(return_value=api))
+        with patch.object(self.engine, "_native_engine", return_value=native), \
+             patch.object(self.engine, "_capture", return_value=frame), \
+             patch.object(self.engine.english_guard, "detect", return_value=[]), \
+             patch("scene_text.textured_rows", return_value=None), \
+             patch("screen_engine.plain_horizontal_rows", return_value=[]), \
+             patch("screen_engine.confirm_desktop_labels", side_effect=AssertionError("Explicit crop must not use desktop proof")):
+            region = dict(left=0, top=0, width=140, height=70, full_display=False)
+            self.assertEqual("口", self.engine.recognize_watched(region, "jpn", "", "ja", ()))
+
     def test_manual_executable_remains_an_explicit_fallback(self):
         self.add_pack("jpn")
         tsv = "5\t1\t1\t1\t1\t1\t0\t0\t20\t10\t94\t日本語\n".encode("utf-8")

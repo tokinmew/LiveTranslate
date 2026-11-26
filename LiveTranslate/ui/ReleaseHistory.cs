@@ -25,6 +25,12 @@ namespace LiveTranslate
         // Keep the newest release first. These notes ship with the application
         // so the installed release history is also available offline.
         internal static readonly ReleaseNote[] Releases = {
+            new ReleaseNote("0.8.1", "Capture fixes and clearer recognition checks",
+                "Read once and Preview briefly reveal target text behind overlapping LiveTranslate windows, then restore the dashboard. Watching reports when the dashboard covers the target. Preview is a direct button and includes clearly labelled recognition details.",
+                "Selected Chinese, Japanese and Korean screen reading now uses the whole-scene icon and fragment safeguards previously applied to Auto. Brief text disappearance and return no longer floods the transcript with the same caption; real wording changes remain visible.",
+                "Audio setup shows measured input levels, detected language and recognition decisions separately from captions. Old device callbacks cannot update a new route. Base stays the default; a checked Small-only download and explicit saved model choice are available.",
+                "VR captions add background-only opacity, saved placement for each connection profile and source labels. Text remains opaque. Supported connection profiles still use SteamVR; OpenXR/VDXR and standalone overlay backends remain unavailable.",
+                "Real capture, authored interface negatives and speech fixtures passed developer checks. A51's exact Home scene, natural accents and physical headset behavior still need field retesting."),
             new ReleaseNote("0.8.0", "Native SteamVR captions and application capture",
                 "Native SteamVR captions display translations inside PC VR while the dashboard is minimized. Choose them under Open captions or Settings, VR captions; adjust their width, distance and vertical position. No attached desktop window or second monitor is required for the caption display.",
                 "Screen capture can target an application window. Preview capture shows the actual image being read; unavailable or minimized windows report a capture problem rather than silently reading the desktop. Some games do not supply background window images and must remain rendering.",

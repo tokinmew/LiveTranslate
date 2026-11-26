@@ -1,5 +1,11 @@
 # Download sources and checks
 
+## 0.8.1 speech option and local diagnostics
+
+No new runtime library or model source is introduced. The optional Small-only button delegates to the existing checked quality installer after verifying its script/scanner identities. Whisper Small's source, revision, byte counts and SHA-256 values remain pinned in that installer's original model list. Its conversion is Systran/faster-whisper-small revision `536b0662742c02347bc0e980a01041f333bce120`; model.bin is 483,546,902 bytes with SHA-256 `3e305921506d8872816023e4c273e75d2419fb89b24da97b4fe7bce14170d671`. The existing scanner checks each file before activation. Tokin's Small model was prepared through that workflow for the comparison; other PCs install it only through an explicit setup action.
+
+Audio measurements and recognition diagnostics stay in memory. Preview recognition is an explicit local action. The app does not automatically save recordings or screenshot files. Capture opacity changes apply briefly to LiveTranslate's own windows and are restored; no Windows theme, system runtime or game files are modified. Connection profiles save app settings only.
+
 ## 0.8.0 native SteamVR and additional OCR
 
 The native caption code uses Valve's versioned OpenVR overlay interface from the user's installed SteamVR runtime. No Valve executable or DLL is bundled or downloaded by this update. The loader locates a registered SteamVR runtime, verifies the installed DLL's Valve signature, and starts an overlay only after an explicit user action with SteamVR already running. It does not change the default VR runtime, Windows settings or VRChat files. API reference: https://github.com/ValveSoftware/openvr/blob/v2.5.1/headers/openvr_capi.h

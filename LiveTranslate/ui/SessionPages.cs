@@ -270,9 +270,9 @@ namespace LiveTranslate
         private void BuildAudioSessionPage()
         {
             Panel page = AddSessionPage("audio");
-            TableLayoutPanel content = Rows(76, 274, 86, 55);
+            TableLayoutPanel content = Rows(76, 340, 160, 86, 55);
             content.Dock = DockStyle.Top;
-            content.Height = 491;
+            content.Height = 717;
             ModernCard modes = LightCard(paper, new Padding(16, 11, 16, 11));
             TableLayoutPanel choices = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 4, RowCount = 1 };
             choices.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 116));
@@ -290,7 +290,7 @@ namespace LiveTranslate
             columns.Padding = new Padding(0, 13, 0, 12);
             ModernCard capture = LightCard(paper, new Padding(18));
             capture.Margin = new Padding(0, 0, 12, 0);
-            TableLayoutPanel captureRows = Rows(34, 36, 0, 34);
+            TableLayoutPanel captureRows = Rows(34, 36, 0, 72, 34);
             sessionAudioSourceTitle = Title("System audio", paperInk, 16F);
             captureRows.Controls.Add(sessionAudioSourceTitle, 0, 0);
             sessionAudioDescription = Note("Choose what reaches the local speech recognizer.", secondaryInk);
@@ -299,7 +299,8 @@ namespace LiveTranslate
             captureRows.Controls.Add(BuildAudioControls(), 0, 2);
             Button refresh = SessionButton("Refresh audio sources", delegate { if (connected) Send("devices", null); }, false);
             refresh.Font = new Font(Font.FontFamily, 9F);
-            captureRows.Controls.Add(refresh, 0, 3);
+            captureRows.Controls.Add(BuildAudioSignalDisplay(), 0, 3);
+            captureRows.Controls.Add(refresh, 0, 4);
             capture.Controls.Add(captureRows);
             columns.Controls.Add(capture, 0, 0);
             ModernCard language = LightCard(paper, new Padding(18));
@@ -315,17 +316,18 @@ namespace LiveTranslate
             language.Controls.Add(languages);
             columns.Controls.Add(language, 1, 0);
             content.Controls.Add(columns, 0, 1);
+            content.Controls.Add(BuildAudioRecognitionDisplay(), 0, 2);
             ModernCard tip = LightCard(paper, new Padding(18, 8, 18, 8));
             TableLayoutPanel tipRows = Rows(27, 0);
             tipRows.Controls.Add(Title("Use headphones for clearer listening", paperInk, 12F), 0, 0);
             tipRows.Controls.Add(Note("Keep translated playback out of your microphone. Auto listen opens only the selected input.", secondaryInk), 0, 1);
             tip.Controls.Add(tipRows);
-            content.Controls.Add(tip, 0, 2);
+            content.Controls.Add(tip, 0, 3);
             TableLayoutPanel footer = Columns(0, 204);
             footer.Padding = new Padding(0, 10, 0, 0);
             footer.Controls.Add(Note("Device changes apply immediately while listening.", secondaryInk), 0, 0);
             footer.Controls.Add(SessionButton("Return to live session", delegate { ShowSessionPage("live"); }, true), 1, 0);
-            content.Controls.Add(footer, 0, 3);
+            content.Controls.Add(footer, 0, 4);
             page.Controls.Add(content);
         }
 
@@ -581,6 +583,7 @@ namespace LiveTranslate
         internal void RefreshSessionUi()
         {
             if (sessionStatePill == null || IsDisposed) return;
+            RefreshAudioDiagnosticControls();
             if (!changingSessionState && sessionPaused && (audioWanted || screenArmed || screenWanted))
                 sessionPaused = resumeSessionAudio = resumeSessionScreen = false;
             sessionStatePill.Text = SessionStatusText;

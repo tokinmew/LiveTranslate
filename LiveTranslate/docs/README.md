@@ -1,4 +1,14 @@
-# LiveTranslate 0.8.0 for Windows 11 x64
+# LiveTranslate 0.8.1 for Windows 11 x64
+
+The 0.8.1 patch fixes a reproduced covered-area capture failure and a selected-language recognition safeguard bypass. **Read once** and **Preview** briefly clear overlapping LiveTranslate windows so the text behind them can be sampled, then restore their appearance and focus. Continuous watching reports an obstructed target instead of silently scanning a blanked area; minimize the dashboard or choose an application target. Put test text in the browser or target application, rather than LiveTranslate's own input field, which is excluded to prevent feedback.
+
+**Preview** is now beside Capture area. The separate **Recognition details** tab shows what OCR claimed and what the source filter accepted, clearly marked as diagnostic. Those readings can be incorrect and are not themselves captions. Preview is one frame; close and reopen it to refresh. No screenshots or audio recordings are saved automatically.
+
+Whole-scene icon and fragment checks now apply when Chinese, Korean or Japanese is selected explicitly, as well as under Auto. Repeated identical source/translation flaps within a short interval no longer flood the transcript, while genuine A → B → A content changes remain visible. For an intentionally ambiguous one-character sign, choose its language and draw a tight area; whole-scene reading remains conservative.
+
+**Audio setup** shows measured input, silence or missing packets, detected language/confidence and recognition decisions. The diagnostic source box can show unconfirmed words without putting them into captions. A level meter confirms signal reception, not translation accuracy. Base remains the default recognizer. **Install Small (~464 MiB)** downloads only the existing checked speech model; once ready, **Use Small model** selects it explicitly. A selected model is remembered. Small was slower and was not consistently better in local comparisons; natural accents and Auto recognition in the reported setup still need retesting.
+
+**Settings → VR captions** now has a **Background opacity** slider from transparent to opaque, with text kept opaque. Select the connection profile to retain different width, distance, height and opacity for SteamVR, Virtual Desktop + SteamVR, Steam Link + SteamVR or Quest Link + SteamVR. This selector restores app layouts; it does not switch the system runtime. OpenXR/VDXR is clearly unavailable and cannot start the SteamVR backend. Native captions also show the source label so SCREEN and AUDIO results can be distinguished.
 
 The 0.8.0 feature update adds native SteamVR captions, application-window capture and a capture preview. Screen-reading status explains whether an image is unavailable, no supported text is confirmed, or translation succeeded. Speech recording retains longer pauses between words and prefers a quiet boundary when a phrase reaches its time limit.
 
@@ -62,7 +72,7 @@ Open the Windows setup application and select **Install**. Open **LiveTranslate*
 
 | Input | Using it |
 | --- | --- |
-| Screen | **Watch screen** starts on the primary display. Use **Capture area** for another display, a subtitle region or a vertical Japanese column. Select a specific source language for expanded screen languages. Automatic full-display reading rejects ambiguous isolated symbols; use a selected area or specific language for a real one-character label. Text over clothing or other patterns can still be missed or misread. |
+| Screen | **Watch screen** starts on the primary display. Use **Capture area** for another display, a subtitle region or a vertical Japanese column. Select a specific source language for expanded screen languages. Whole-scene reading rejects ambiguous isolated symbols; choose the matching language and a tight drawn area for an intentional one-character sign. Text over clothing or other patterns can still be missed or misread. |
 | Written text | Choose the source language and paste a passage. English-only lines are filtered. Short words shared with English can be skipped. |
 | Games, videos and calls | Choose **Computer audio**, then turn on **Auto listen**. If speech is not received, choose the output actually used by the game or chat app. |
 | Voices in the room | Choose your microphone or **Computer + microphone**. Turn **Auto listen** off to release the inputs. |

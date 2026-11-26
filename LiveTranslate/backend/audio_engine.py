@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 # The ONNX runtime reads this flag during native initialization.
 os.environ["ORT_DISABLE_TELEMETRY"] = "1"
 from audio_chunks import CapturedPhrase, PendingPhrases, PhraseBuffer
+from audio_diagnostics import SignalMonitor
 from audio_devices import (DEFAULT_PLAYBACK, DEFAULT_PLAYBACK_AND_MIC, capture_routes,
                            input_devices, windows_default_routes)
 from speech_decode import SPOKEN_LANGUAGES, downmix, mono_16k, speech_captions
@@ -69,6 +70,7 @@ class _Session:
     korean_dialogue: str = "standard"
     next_lag_notice: float = 0
     next_drop_notice: float = 0
+    signals: SignalMonitor = field(default_factory=SignalMonitor)
 
     def __post_init__(self):
         self.chunks = PendingPhrases(self.chunk_seconds, keep_dialogue=self.korean_dialogue == "nvidia")
@@ -442,6 +444,7 @@ class AudioEngine:
                     break
                 with self._lock:
                     session.route_epoch += 1
+                    session.signals.reset()
                     if session.korean_dialogue == "nvidia":
                         session.overrun.clear()
                         session.next_lag_notice = session.next_drop_notice = 0
@@ -503,6 +506,8 @@ class AudioEngine:
                             return True
                         raise RuntimeError("The audio device stopped. Refresh audio sources and start again.")
                     phrases.flush_idle(now)
+                for diagnostic in session.signals.snapshots(now):
+                    self._session_event(session, diagnostic, session.route_epoch)
                 if session.korean_dialogue == "nvidia" and now >= next_queue_check:
                     self._check_dialogue_queue(session, now, session.route_epoch)
                     next_queue_check = now + 0.25
@@ -550,14 +555,16 @@ class AudioEngine:
                                 session.overrun.set()
 
                     phrases = PhraseBuffer(rate, channels, session.chunk_seconds, submit)
+                    session.signals.register(route.source, index, channels, rate)
 
                     def callback(data, frame_count, time_info, status, phrases=phrases, fmt=fmt):
-                        if session.stop.is_set():
+                        if session.stop.is_set() or epoch != session.route_epoch:
                             return (None, pa.paComplete)
                         if data:
                             if fmt != pa.paInt16:
                                 floats = np.frombuffer(data, dtype="<f4")
                                 data = (np.clip(floats, -1, 32767/32768) * 32768).astype("<i2").tobytes()
+                            session.signals.observe(route.source, index, data, channels)
                             phrases.add(data)
                         return (None, pa.paContinue)
 
@@ -615,9 +622,26 @@ class AudioEngine:
             samples = pcm_to_mono(phrase.payload, phrase.channels, phrase.rate)
             def cancelled():
                 return session.stop.is_set() or phrase.epoch != session.route_epoch
-            captions = speech_captions(model, samples, session.language, memory, cancelled)
+            diagnostic = {}
+            captions = speech_captions(model, samples, session.language, memory, cancelled, diagnostics=diagnostic)
             if session.device_id in (DEFAULT_PLAYBACK, DEFAULT_PLAYBACK_AND_MIC):
                 captions = _distinct_routes(captions, phrase, samples, recent, cancelled)
+            delivered = 0
+            last_caption = None
             for caption in memory.stabilize(phrase, captions, cancelled):
                 self._session_event(session, {"type": "audio", **caption, "source": phrase.source,
                                              "seconds": round(time.monotonic() - now, 2)}, phrase.epoch)
+                delivered += 1
+                last_caption = caption
+            if delivered:
+                diagnostic.update(decision="accepted", message="Translated " + str(delivered) + " voice caption(s).")
+                language = last_caption.get("language", "")
+                if language != diagnostic.get("language"):
+                    diagnostic.pop("probability", None)
+                diagnostic.update(language=language,
+                                  recognized=" ".join(last_caption.get("original", "").split())[:240])
+            elif diagnostic.get("decision") == "accepted":
+                diagnostic.update(decision="duplicate_filtered", message="A matching voice caption was already delivered.")
+            self._session_event(session, {"type": "audio_diagnostic", "stage": "recognition", **diagnostic,
+                                         "source": phrase.source, "endpoint": phrase.endpoint,
+                                         "captions": delivered}, phrase.epoch)

@@ -10,7 +10,13 @@ Updated 2026-11-25 following the 0.7.2 field report. A51 uses Quest 3S through V
 - German, Italian and Spanish written translation and matching OCR preparation alongside the four starter Asian profiles.
 - Field retests remain required; developer fixtures do not establish accuracy with actual speakers or a physical headset.
 
-## Next feature: launcher and runtime profiles
+## 0.8.1 connection profiles and opacity
+
+The patch adds a connection selector with separate saved placement and background opacity for SteamVR, Virtual Desktop + SteamVR, Steam Link + SteamVR and Quest Link + SteamVR. It reports whether SteamVR is running and checks the headset on explicit start. Original 0.8.0 placement migrates into the SteamVR profile. No system runtime is switched automatically.
+
+An OpenXR/VDXR option is explicitly unavailable and blocks SteamVR start. This selector is layout/profile support, not completion of multiple native overlay backends. Physical tests for each connection remain pending. A51 should test his Quest 3S/Virtual Desktop/SteamVR profile first.
+
+## Remaining launcher and runtime work
 
 Requested by Tokin: let users choose their VR launcher/connection and retain suitable overlay placement for that setup.
 
@@ -21,4 +27,4 @@ Requested by Tokin: let users choose their VR launcher/connection and retain sui
 
 Tokin can validate profile selection, saved settings, runtime detection, missing-runtime errors and caption rendering on PC. A51 should first test the existing Quest 3S/Virtual Desktop/SteamVR path on one monitor, then another available runtime in a later short evening session. Preserve prior test results and assign only the affected retests.
 
-Keep this queued behind capture reliability and the first native-overlay headset retest. A connection selector alone does not complete multi-runtime support.
+Keep the remaining backend work queued behind capture reliability and the first native-overlay headset retest. A connection selector alone does not complete multi-runtime support.

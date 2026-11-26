@@ -16,13 +16,14 @@ namespace LiveTranslate
     internal sealed class NativeVrCaptionSnapshot
     {
         internal string Status, Input, Original, Translation;
+        internal int BackgroundOpacity = 95;
         internal NativeVrCaptionSnapshot Copy()
         {
-            return new NativeVrCaptionSnapshot { Status = Status, Input = Input, Original = Original, Translation = Translation };
+            return new NativeVrCaptionSnapshot { Status = Status, Input = Input, Original = Original, Translation = Translation, BackgroundOpacity = BackgroundOpacity };
         }
         internal bool SameAs(NativeVrCaptionSnapshot other)
         {
-            return other != null && Status == other.Status && Input == other.Input && Original == other.Original && Translation == other.Translation;
+            return other != null && Status == other.Status && Input == other.Input && Original == other.Original && Translation == other.Translation && BackgroundOpacity == other.BackgroundOpacity;
         }
     }
 
@@ -197,9 +198,11 @@ namespace LiveTranslate
                 graphics.Clear(Color.Transparent);
                 graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+                int opacity = Math.Max(0, Math.Min(100, snapshot.BackgroundOpacity));
+                int backgroundAlpha = (int)Math.Round(opacity * 255.0 / 100);
                 using (GraphicsPath shape = Rounded(new Rectangle(2, 2, Width - 5, Height - 5), 24))
-                using (var background = new SolidBrush(Color.FromArgb(241, 15, 20, 30)))
-                using (var border = new Pen(Color.FromArgb(180, 69, 91, 105), 2))
+                using (var background = new SolidBrush(Color.FromArgb(backgroundAlpha, 15, 20, 30)))
+                using (var border = new Pen(Color.FromArgb(opacity * 180 / 100, 69, 91, 105), 2))
                 { graphics.FillPath(background, shape); graphics.DrawPath(border, shape); }
                 using (var heading = new Font("Segoe UI", 25F, FontStyle.Bold, GraphicsUnit.Pixel))
                 using (var status = new Font("Segoe UI", 21F, FontStyle.Regular, GraphicsUnit.Pixel))
@@ -218,7 +221,7 @@ namespace LiveTranslate
                         right.Alignment = StringAlignment.Far;
                         graphics.DrawString(snapshot.Status ?? "", status, mint, new RectangleF(348, 29, 635, 34), right);
                     }
-                    using (var line = new Pen(Color.FromArgb(80, 112, 128))) graphics.DrawLine(line, 38, 79, Width - 38, 79);
+                    using (var line = new Pen(Color.FromArgb(backgroundAlpha, 80, 112, 128))) graphics.DrawLine(line, 38, 79, Width - 38, 79);
                     graphics.DrawString(snapshot.Original ?? "", original, purple, new RectangleF(40, 97, Width - 80, 77), paragraph);
                     string text = pages[page].Length == 0 ? "No translation yet" : pages[page];
                     graphics.DrawString(text, translation, pages[page].Length == 0 ? muted : white, new RectangleF(40, 181, Width - 88, 270), paragraph);

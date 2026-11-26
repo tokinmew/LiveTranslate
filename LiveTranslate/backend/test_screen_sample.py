@@ -8,6 +8,45 @@ from screen_engine import ScreenCaptureUnavailable, ScreenEngine
 
 
 class ScreenSampleTests(unittest.TestCase):
+    def test_manual_mode_uses_a_separate_bounded_lease_and_restores_intent(self):
+        calls = []
+        def exchange(message, token):
+            calls.append(message)
+            return True
+        fake = MagicMock()
+        capture = fake.mss.return_value.__enter__.return_value
+        from PIL import Image
+        pixels = Image.new("RGB", (60, 16), (20, 27, 37))
+        capture.grab.return_value = SimpleNamespace(size=pixels.size, rgb=pixels.tobytes())
+        rect = dict(left=0, top=0, width=60, height=16)
+        with patch.dict(sys.modules, {"mss": fake, "mss.exception": SimpleNamespace(ScreenShotError=OSError)}), \
+             patch.object(ScreenEngine, "_sample_messages", return_value=exchange), \
+             patch.object(ScreenEngine, "_visible_bounds", return_value=[]):
+            with self.assertRaisesRegex(ValueError, "cancelled"):
+                with ScreenEngine.manual_capture():
+                    ScreenEngine._capture(rect, [10])
+                    raise ValueError("cancelled")
+            ScreenEngine._capture(rect, [10])
+        self.assertEqual([0x8243, 0x8242, 0x8241, 0x8242], calls)
+
+    def test_coverage_counts_clipped_overlapping_windows_only_once(self):
+        rect = dict(left=10, top=20, width=100, height=50)
+        self.assertEqual(50, ScreenEngine._masked_percent(rect, [(0, 0, 60, 100), (10, 20, 60, 70)]))
+        self.assertEqual(100, ScreenEngine._masked_percent(rect, [(0, 0, 60, 100), (60, 20, 200, 70)]))
+        self.assertEqual(0, ScreenEngine._masked_percent(rect, [(200, 200, 250, 250)]))
+
+    def test_fully_covered_watch_does_not_run_blank_capture_or_ocr(self):
+        fake = MagicMock()
+        capture = fake.mss.return_value.__enter__.return_value
+        exchange = MagicMock(return_value=True)
+        with patch.dict(sys.modules, {"mss": fake, "mss.exception": SimpleNamespace(ScreenShotError=OSError)}), \
+             patch.object(ScreenEngine, "_sample_messages", return_value=exchange), \
+             patch.object(ScreenEngine, "_visible_bounds", return_value=[(0, 0, 100, 100)]):
+            with self.assertRaisesRegex(ScreenCaptureUnavailable, "covered by a LiveTranslate"):
+                ScreenEngine._capture(dict(left=0, top=0, width=50, height=30), [10])
+        capture.grab.assert_not_called()
+        self.assertEqual([0x8241, 0x8242], [call.args[0] for call in exchange.call_args_list])
+
     def test_end_matching_lease_on_success_and_capture_failure(self):
         calls = []
         def exchange(message, token):

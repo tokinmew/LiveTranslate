@@ -436,10 +436,10 @@ DESKTOP_ICON_CONFUSABLE = frozenset("一二三十口回ロノニヘへくエ工�
 
 
 def filter_desktop_fragments(text, positions, verified_spans=()):
-    """Require local text evidence for Auto OCR of an entire desktop.
+    """Require local text evidence for CJK OCR of an entire desktop/application.
 
-    Call only for the original full-display Auto request, never for a selected
-    region, explicit language or independently verified vertical column. Icons
+    Call only for a full-display request, never for a selected
+    region or independently verified vertical column. Icons
     can look exactly like isolated CJK glyphs even to two OCR configurations.
     A separate exact crop reread can verify complex single-character labels or
     unusually narrow text. Supply those results as Word objects with original
@@ -761,7 +761,12 @@ def filter_words(raw, tsv, observations, image=None, positions=None, *, desktop_
         for bucket in range(hit.box[1] // 64, hit.box[3] // 64 + 1):
             bins.setdefault(bucket, []).append(hit.box)
     stroke_map = _InkCoverage(image, observations) if image is not None and observations else None
-    minimum = 66 if observations is None or desktop_auto else 40
+    # Without an English reader, a selected CJK recognizer can turn a fragment
+    # of an English label into one plausible syllable. A tighter reread by the
+    # same biased recognizer is not independent evidence for that weak first
+    # guess. Full scenes require the existing strong-word threshold; explicit
+    # crops and weak pieces supported by two strong words retain their path.
+    minimum = 75 if desktop_auto and observations is None else 66 if observations is None or desktop_auto else 40
     vetoed = set()
     supported = {}
     for i, word in enumerate(words):

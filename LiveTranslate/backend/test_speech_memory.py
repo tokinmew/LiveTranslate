@@ -119,5 +119,6 @@ class SpeechStabilityTests(unittest.TestCase):
             session.chunks.next = lambda timeout: next(packets)
             with patch("audio_engine.speech_captions",side_effect=[r[-1] for r in rows]):
                 engine._translate(session,object())
-        self.assertEqual(["We're leaving.","Now.","We're leaving.","Are we arriving?","We set off."], [e["text"] for e in events])
+        self.assertEqual(["We're leaving.","Now.","We're leaving.","Are we arriving?","We set off."],
+                         [e["text"] for e in events if e["type"] == "audio"])
 

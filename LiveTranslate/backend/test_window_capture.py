@@ -93,6 +93,32 @@ class ApplicationCaptureTests(unittest.TestCase):
         with Image.open(io.BytesIO(base64.b64decode(preview["image"]))) as small:
             self.assertEqual((960, 480), small.size)
 
+    def test_preview_diagnoses_the_exact_sample_without_turning_raw_text_into_captions(self):
+        import tempfile
+        from screen_geometry import LocatedText
+        with tempfile.TemporaryDirectory() as root:
+            engine = ScreenEngine(Path(root))
+            frame = Image.new("L", (600, 160), 255)
+            frame.info["capture_info"] = dict(source="display", width=600, height=160, masked_percent=0)
+            rejected = LocatedText("")
+            rejected.raw_ocr = "Home / invented characters"
+            with patch.object(engine, "_capture", return_value=frame), patch.object(engine, "recognize", return_value=rejected) as read:
+                preview = engine.preview(dict(left=0, top=0, width=600, height=160), language="jpn", source="ja")
+            self.assertIs(frame, read.call_args.kwargs["_frame"])
+            self.assertEqual("Home / invented characters", preview["diagnostics"]["raw_ocr"])
+            self.assertEqual("", preview["diagnostics"]["accepted_ocr"])
+            self.assertNotIn("text", preview)
+
+    def test_missing_ocr_files_preserve_preview_with_a_separate_error(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as root:
+            engine = ScreenEngine(Path(root))
+            frame = Image.new("L", (60, 16), 255)
+            with patch.object(engine, "_capture", return_value=frame), patch.object(engine, "recognize", side_effect=ValueError("Missing OCR model")):
+                preview = engine.preview(dict(left=0, top=0, width=60, height=16), language="jpn", source="ja")
+            self.assertTrue(preview["image"])
+            self.assertEqual("Missing OCR model", preview["diagnostics"]["recognition_error"])
+
 
 if __name__ == "__main__":
     unittest.main()

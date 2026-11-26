@@ -305,7 +305,7 @@ class WorkerTests(unittest.TestCase):
             self.worker.execute(self.worker.jobs.get_nowait())
         self.assertIsNone(self.worker.screen_once_thread)
 
-    def test_watch_skips_translation_for_duplicate_text_and_resets_after_blank(self):
+    def test_watch_restores_after_blank_without_repeating_the_transcript(self):
         done = threading.Event()
         old_send = self.worker.send
         def send(event):
@@ -328,6 +328,9 @@ class WorkerTests(unittest.TestCase):
             self.assertTrue(done.wait(2))
         self.assertEqual(1, translate.call_count)
         self.assertEqual(1, sum(e["type"] == "screen_clear" for e in self.events))
+        rows = [event for event in self.events if event["type"] == "screen"]
+        self.assertEqual([False, True], [event["layout_only"] for event in rows])
+        self.assertEqual(["English result", "English result"], [event["text"] for event in rows])
 
     def test_single_profile_requires_explicit_all_four_without_downloading(self):
         with patch.object(self.worker.checked_setup, "install") as checked:

@@ -150,9 +150,16 @@ def _language_confident(info, selection, short):
             and probability - alternatives.get("en", 0.0) >= .28)
 
 
-def translate_spans(model, clip, source, info, selection, short, memory, options, cancelled, confident_segment):
+def translate_spans(model, clip, source, info, selection, short, memory, options, cancelled, confident_segment, diagnostics=None):
     """Check per-segment source evidence and translate only the approved time ranges."""
     from speech_memory import SpeechCaptionMemory
+    def note(decision, message, original=None):
+        if diagnostics is not None:
+            diagnostics.update(decision=decision, message=message)
+            if original is not None:
+                diagnostics["recognized"] = " ".join(original.split())[:240]
+    if selection not in ("auto", info.language):
+        note("language_mismatch", "Detected speech does not match the selected language.")
     if cancelled() or not _language_confident(info, selection, short):
         return
     language = info.language
@@ -171,10 +178,14 @@ def translate_spans(model, clip, source, info, selection, short, memory, options
             current = []
     if current:
         groups.append(current)
+    if not groups:
+        note("source_unconfirmed", "A language was detected, but the source words did not pass speech checks.",
+             " ".join(seg.text for seg in segments)[:240])
     for group in groups:
         if cancelled():
             return
         original = " ".join(seg.text.strip() for seg in group)
+        note("translation_unconfirmed", "Foreign words were recognized, but an English translation was not confirmed.", original)
         english = memory.lookup(original, language) if isinstance(memory, SpeechCaptionMemory) else None
         if english is None:
             # Keep padded boundaries for a brief isolated reply. Elsewhere the
@@ -201,4 +212,5 @@ def translate_spans(model, clip, source, info, selection, short, memory, options
             if not _english_translation(english, original, language):
                 continue
         if not cancelled():
+            note("accepted", "Foreign speech was translated.", original)
             yield {"text": english, "original": original, "language": language}

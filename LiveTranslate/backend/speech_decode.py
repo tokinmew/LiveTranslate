@@ -435,21 +435,37 @@ def _caption_for_source(model, original, language, audio, short, translate_sourc
     return None
 
 
+def _speech_diagnostic(diagnostics, decision, message, info=None, recognized=None):
+    if diagnostics is None:
+        return
+    diagnostics.update(decision=decision, message=message)
+    if info is not None:
+        probability = float(info.language_probability)
+        diagnostics.update(language=str(info.language),
+                           probability=max(0.0, min(1.0, probability)) if math.isfinite(probability) else 0.0,
+                           recognized="")
+    if recognized is not None:
+        diagnostics["recognized"] = " ".join(str(recognized).split())[:240]
+
+
 def speech_captions(model, samples, selection="auto", translate_source=None, cancelled=lambda: False,
-                    observe_language=None):
+                    observe_language=None, diagnostics=None):
     """Yield English for identified foreign speech that matches the selected profile."""
     import numpy as np
+    _speech_diagnostic(diagnostics, "no_speech", "No complete speech phrase was confirmed.")
     if cancelled() or len(samples) < 960:
         return
     raw_samples = samples
     power = float(np.sqrt(np.mean(samples * samples, dtype=np.float64)))
     if not math.isfinite(power) or power == 0:
+        _speech_diagnostic(diagnostics, "no_speech", "The captured phrase contains silence.")
         return
     # A brief reply surrounded by silence has a much lower overall RMS than
     # the voiced frames. Keep quiet channels audible to the neural speech gate.
     if power < 0.032:
         peak = float(np.max(np.abs(samples)))
         if peak < 0.00018:
+            _speech_diagnostic(diagnostics, "no_speech", "The captured audio is below the speech detection level.")
             return
         samples = samples * max(1.0, min(160.0, 0.032 / power, 0.95 / peak))
     options = dict(beam_size=5, best_of=1, temperature=0.0, vad_filter=False,
@@ -459,6 +475,8 @@ def speech_captions(model, samples, selection="auto", translate_source=None, can
         spans = partition(model, samples, _speech_spans, cancelled, _SCRIPTS)
     else:
         spans = _speech_spans(samples)
+    if not spans:
+        _speech_diagnostic(diagnostics, "no_speech", "Audio arrived, but the voice detector did not confirm speech.")
     for span in spans:
         if cancelled():
             return
@@ -469,14 +487,17 @@ def speech_captions(model, samples, selection="auto", translate_source=None, can
         clip = np.pad(recorded, (2560, 3200)) if short else recorded
         source, info = model.transcribe(clip, task="transcribe", language=None,
                                         without_timestamps=short, **options)
+        _speech_diagnostic(diagnostics, "uncertain_language", "Speech language was not confirmed with enough confidence.", info)
         if observe_language is not None:
             observe_language(info.language, float(info.language_probability))
         if info.language in DIRECT_SPEECH:
             if selection == "auto" or selection not in CJK_SPEECH:
                 yield from translate_spans(model, clip, source, info, selection, short, translate_source,
-                                           options, cancelled, _confident_segment)
+                                           options, cancelled, _confident_segment, diagnostics)
                 continue
         elif selection != "auto" and selection not in CJK_SPEECH:
+            _speech_diagnostic(diagnostics, "english_filtered" if info.language == "en" else "language_mismatch",
+                               "English speech is filtered." if info.language == "en" else "Detected speech does not match the selected language.")
             continue
         if getattr(model,"dialogue_model",None) is not None and not cancelled():
             from korean_dialogue import accurate_turn
@@ -490,6 +511,7 @@ def speech_captions(model, samples, selection="auto", translate_source=None, can
             if cancelled():
                 return
             if upgraded is not None:
+                _speech_diagnostic(diagnostics, "accepted", "Foreign speech was translated.", recognized=upgraded.get("original", ""))
                 yield upgraded
                 continue
         if short and not cancelled():
@@ -526,10 +548,15 @@ def speech_captions(model, samples, selection="auto", translate_source=None, can
                 caption = _caption_for_source(model, original, language, clip, True,
                                               translate_source, options, cancelled, corroborated)
                 if caption is not None:
+                    _speech_diagnostic(diagnostics, "accepted", "Foreign speech was translated.", recognized=caption.get("original", ""))
                     yield caption
                     continue
         reviewed = False
         accepted = _accepted_language(info, selection)
+        if info.language == "en":
+            _speech_diagnostic(diagnostics, "english_filtered", "English speech is filtered.")
+        elif selection != "auto" and info.language != selection:
+            _speech_diagnostic(diagnostics, "language_mismatch", "Detected speech does not match the selected language.")
         first = info
         conflicting_words = False
         if not accepted:
@@ -543,6 +570,7 @@ def speech_captions(model, samples, selection="auto", translate_source=None, can
                 if observe_language is not None:
                     observe_language(check.language, float(check.language_probability))
                 if check.language in candidates and _confirmed_short(info, check, selection):
+                    _speech_diagnostic(diagnostics, "source_unconfirmed", "A short speech language was confirmed; checking its words.", check)
                     source, info = second, check
                     reviewed = accepted = True
         language = info.language
@@ -568,10 +596,13 @@ def speech_captions(model, samples, selection="auto", translate_source=None, can
         # no qualifying source script. Keep its time out of the fallback too.
         groups = []
         current = []
+        observed_words = []
         native_evidence = not accepted
         for seg in source if accepted else ():
             if cancelled():
                 return
+            if sum(map(len, observed_words)) < 240:
+                observed_words.append(seg.text[:240])
             native_evidence |= bool(_SCRIPTS[language].search(seg.text))
             sure = not reviewed or (seg.avg_logprob >= -.72 and seg.no_speech_prob <= .40)
             if sure and _confident_segment(seg) and _SCRIPTS[language].search(seg.text):
@@ -591,10 +622,15 @@ def speech_captions(model, samples, selection="auto", translate_source=None, can
             if cancelled():
                 return
             original = " ".join(seg.text.strip() for seg in group)
+            _speech_diagnostic(diagnostics, "translation_unconfirmed", "Foreign words were recognized, but an English translation was not confirmed.", recognized=original)
             start = max(0, round(group[0].start * 16000))
             end = min(len(clip), round(group[-1].end * 16000))
             caption = _caption_for_source(model, original, language, clip[start:end], short and len(group) == 1,
                                           translate_source, options, cancelled,
                                           acoustic_translation=short and _accepted_language(info, selection))
             if caption is not None:
+                _speech_diagnostic(diagnostics, "accepted", "Foreign speech was translated.", recognized=caption.get("original", original))
                 yield caption
+        if accepted and not groups:
+            _speech_diagnostic(diagnostics, "source_unconfirmed", "A language was detected, but the source words did not pass speech checks.",
+                               recognized=" ".join(observed_words))

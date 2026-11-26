@@ -45,6 +45,14 @@ class OcrGuardTests(unittest.TestCase):
         data = "\n".join([tsv("日", 5, 96), tsv("本", 33, 93), tsv("語", 60, 0)])
         self.assertEqual("日本語", filter_words("日本語", data, [], desktop_auto=True))
 
+    def test_unavailable_english_reader_requires_stronger_full_scene_single_fragment(self):
+        raw = "0660 히"
+        data = tsv("0660", 0, 96) + "\n" + tsv("히", 100, 72.49)
+        self.assertEqual("", filter_words(raw, data, None, desktop_auto=True))
+        self.assertEqual(raw, filter_words(raw, data, None))
+        data = "\n".join([tsv("日", 5, 96), tsv("本", 33, 93), tsv("語", 60, 0)])
+        self.assertEqual("日本語", filter_words("日本語", data, None, desktop_auto=True))
+
     def test_bad_tsv_does_not_turn_into_an_unguarded_caption(self):
         self.assertEqual([],parse_tsv("level\ttext\n5\tbad"))
         self.assertEqual("",filter_words("日本語","",[]))

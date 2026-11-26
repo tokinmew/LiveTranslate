@@ -1,4 +1,16 @@
-# LiveTranslate 0.8.0 release testing
+# LiveTranslate 0.8.1 release testing
+
+## 0.8.1 reproduced fixes and remaining field failures
+
+A native test reproduced the 0.8.0 white capture rectangle when LiveTranslate covered an authored external Japanese text window. The revised manual lease captured the underlying pixels, and native OCR returned the complete sentence. Opacity, window placement, visibility and focus were restored; capture exceptions and worker-exit timeout cleanup were exercised. Continuous watching reports obstruction without repeatedly hiding the dashboard. No personal desktop region was sampled by this fixture.
+
+Nine authored English/icon scenes were checked under Auto and each of four explicit starter profiles. Before the patch, selected-language modes yielded false OCR on 25 of the 45 combinations; Auto's nine stayed clear. After applying the existing whole-scene proof to selected CJK profiles, all 45 negatives stayed clear. A permanent 49-case native runner passed with the English helper available and deliberately unavailable. Thirty-six real-text comparisons had unchanged output versus baseline: 23 exact results and 13 existing misses or fragmentation. These are bounded controls, not a claim of perfect screen recognition or reproduction of A51's exact Home scene.
+
+Transcript-repeat tests cover A → blank → A within 30 seconds, geometry updates, different translations and genuine A → B → A changes. Overlay clearing/restoration remains independent from suppression of repeated transcript entries. No English Home word blocklist was introduced.
+
+Audio adds measured per-endpoint signal and bounded in-memory recognition diagnostics. Silence, missing callbacks, clipping, selected-language mismatch and uncertain/English suppression are distinguishable. Old endpoint callbacks terminate after rerouting. A 32-case offline comparison used Base and Small, normal and deliberately paused recordings, and Auto/explicit selection. All 24 foreign cases produced captions; eight English cases stayed empty. Small was slower and lost a clause in one Korean result. The reported Auto/accent failures remain human retest items; no blanket detector-threshold change is claimed.
+
+Opacity render tests check 0%, 50% and 100% backgrounds with opaque text, keyboard/accessibility controls, first-frame opacity and persisted connection layouts. Profile selection uses the existing SteamVR backend. OpenXR/VDXR selection disables native start; no system runtime is changed. Physical Quest 3S/Virtual Desktop placement, readability, opacity and reconnect behavior remain field tests. Detailed final fixture and signed-update results are in the release receipt.
 
 ## Current field report and validation scope
 

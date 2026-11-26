@@ -116,7 +116,7 @@ class AudioLifecycleTests(unittest.TestCase):
             with patch("audio_engine.speech_captions", side_effect=captions):
                 engine._translate(session, object())
             self.assertEqual([("pc", "ja"), ("microphone", "ja"), ("pc", "ko"), ("pc", "ja"),
-                              ("microphone", "ja")], [(e["source"], e["language"]) for e in events])
+                              ("microphone", "ja")], [(e["source"], e["language"]) for e in events if e["type"] == "audio"])
 
     def test_model_load_time_does_not_count_against_pending_reply_age(self):
         from audio_chunks import CapturedPhrase
@@ -140,7 +140,7 @@ class AudioLifecycleTests(unittest.TestCase):
                 decode.return_value = [{"text": "Hello.", "language": "ja"}]
                 engine._translate(session, object())
             decode.assert_called_once()
-            self.assertEqual(["audio", "status"], [e["type"] for e in events])
+            self.assertEqual(["audio", "status"], [e["type"] for e in events if e["type"] != "audio_diagnostic"])
 
     def test_first_replies_are_captured_during_model_load_and_discarded_on_stop(self):
         # A virtual loopback sends six short replies only once. They all arrive
@@ -168,7 +168,7 @@ class AudioLifecycleTests(unittest.TestCase):
                     stream.is_active.side_effect = lambda: not closed.is_set()
                     stream.close.side_effect = closed.set
                     return stream
-                def decode(model, samples, language, translate, cancelled):
+                def decode(model, samples, language, translate, cancelled, **kwargs):
                     received.append(round(float(max(samples)) * 32768))
                     yield {"text": str(received[-1]), "language": "ja"}
                 def emit(event):
@@ -219,7 +219,7 @@ class AudioLifecycleTests(unittest.TestCase):
             def get_device_info_by_index(self, index): return {"maxInputChannels": 1, "defaultSampleRate": 16000}
             def open(self, **kwargs): return Stream(kwargs["stream_callback"])
             def terminate(self): pass
-        def decode(model, samples, language, translate, cancelled):
+        def decode(model, samples, language, translate, cancelled, **kwargs):
             entered.set()
             release.wait(3)
             yield {"text": "stale", "language": language}
@@ -268,7 +268,7 @@ class AudioLifecycleTests(unittest.TestCase):
             def terminate(self): pass
 
         calls = []
-        def decode(model, samples, language, translate, cancelled):
+        def decode(model, samples, language, translate, cancelled, **kwargs):
             calls.append(language)
             if len(calls) == 1:
                 entered.set()

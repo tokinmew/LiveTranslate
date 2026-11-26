@@ -260,7 +260,9 @@ internal static class NativeVrOverlayChecks
             long now = 0;
             var overlay = new NativeVrOverlay(delegate { return fake; }, delegate { return now; });
             Put(app, "nativeVrOverlay", overlay);
+            Field<OpacitySlider>(app, "nativeVrOpacity").Value = 0;
             Call(app, "StartNativeVrCaptions");
+            Check(Field<NativeVrCaptionSnapshot>(overlay, "drawn").BackgroundOpacity == 0, "The first submitted image honors saved transparent background without an opaque flash");
             Check(overlay.IsRunning && Field<Timer>(app, "nativeVrTimer").Enabled && fake.Starts == 1, "Explicit VR control starts one overlay and its app timer");
             Check(Field<VrCaptionWindow>(app, "vrCaptionWindow") == null, "Native overlay creates no desktop caption window");
             Check(!Field<Button>(app, "nativeVrStart").Enabled && Field<Button>(app, "nativeVrStop").Enabled, "Running state has correct start and stop controls");

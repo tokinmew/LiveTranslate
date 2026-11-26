@@ -99,15 +99,24 @@ namespace LiveTranslate
             row.Controls.Add(selectArea, 2, 0);
             row.Controls.Add(readOnce, 3, 0);
             panel.Controls.Add(row, 0, 0);
-            TableLayoutPanel hint = Columns(0, 174);
+            TableLayoutPanel hint = new TableLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, ColumnCount = 3, RowCount = 1 };
+            hint.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            hint.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 84));
+            hint.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 174));
+            hint.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             screenStateLabel = Note("Waiting for local language files.", secondaryInk);
             screenStateLabel.Font = new Font(Font.FontFamily, 8.7F);
             screenStateLabel.TextChanged += delegate { dashboardTips.SetToolTip(screenStateLabel, screenStateLabel.Text); };
             hint.Controls.Add(screenStateLabel, 0, 0);
+            Button preview = SessionButton("Preview", delegate { RequestCapturePreview(); }, false);
+            preview.AccessibleName = "Preview captured view";
+            preview.Font = new Font(Font.FontFamily, 8F);
+            preview.Margin = new Padding(3, 0, 5, 0);
+            hint.Controls.Add(preview, 1, 0);
             sessionDetailsButton = SessionButton("Screen & language options", delegate { ToggleSessionDetails(); }, false);
             sessionDetailsButton.Font = new Font(Font.FontFamily, 8F);
             sessionDetailsButton.Margin = Padding.Empty;
-            hint.Controls.Add(sessionDetailsButton, 1, 0);
+            hint.Controls.Add(sessionDetailsButton, 2, 0);
             panel.Controls.Add(hint, 0, 1);
             return panel;
         }

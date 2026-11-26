@@ -79,14 +79,13 @@ namespace LiveTranslate
         private static extern bool SetMarker(IntPtr handle, string name, IntPtr value);
         [DllImport("user32.dll", EntryPoint = "RemovePropW", CharSet = CharSet.Unicode)]
         private static extern IntPtr RemoveMarker(IntPtr handle, string name);
-        [DllImport("user32.dll")] private static extern bool SetWindowDisplayAffinity(IntPtr handle, uint affinity);
         protected override void OnHandleCreated(EventArgs args)
         {
             base.OnHandleCreated(args);
             SetMarker(Handle, CaptureMarker, new IntPtr(1));
-            // App-owned preview only. On systems without capture exclusion,
-            // the backend sees the marker and masks this rectangle instead.
-            try { SetWindowDisplayAffinity(Handle, 0x11); } catch (EntryPointNotFoundException) { }
+            // The watcher discovers this marker even when it started before
+            // the preview. Keep the preview capturable for screenshots and
+            // support; only the OCR input masks this app-owned rectangle.
         }
         protected override void OnHandleDestroyed(EventArgs args)
         {
@@ -100,6 +99,22 @@ namespace LiveTranslate
         private ApplicationCaptureTarget captureApplication;
         private Form capturePreview;
         private int capturePreviewRequest;
+        private readonly Dictionary<string, string> lastCaptureErrors = new Dictionary<string, string>();
+
+        private void ReportCaptureError(string channel, string message)
+        {
+            if (channel != "screen" && channel != "screen_once" && channel != "audio") return;
+            string previous;
+            if (!lastCaptureErrors.TryGetValue(channel, out previous) || previous != message)
+                Append("CAPTURE", message);
+            lastCaptureErrors[channel] = message;
+            SetStatus(message);
+        }
+
+        private void ClearCaptureError(string channel)
+        {
+            lastCaptureErrors.Remove(channel);
+        }
 
         private void InvalidateCapturePreview()
         {
@@ -173,16 +188,26 @@ namespace LiveTranslate
                 using (Image decoded = Image.FromStream(stream)) frame = new Bitmap(decoded);
                 if (capturePreview != null && !capturePreview.IsDisposed) capturePreview.Close();
                 Form preview = new CapturePreviewWindow { Text = "Captured view · LiveTranslate", StartPosition = FormStartPosition.CenterParent,
-                    Size = new Size(980, 660), MinimumSize = new Size(560, 390), BackColor = background, ForeColor = ink };
+                    Size = new Size(980, 660), MinimumSize = new Size(560, 390), BackColor = background, ForeColor = ink, Font = Font };
                 capturePreview = preview;
                 PictureBox picture = new PictureBox { Dock = DockStyle.Fill, Image = frame, SizeMode = PictureBoxSizeMode.Zoom,
                     BackColor = field, AccessibleName = "Current captured view" };
-                Label explanation = new Label { Dock = DockStyle.Bottom, Height = 92, Padding = new Padding(14), ForeColor = muted,
+                var tabs = new ThemedTabControl { Dock = DockStyle.Fill, AccessibleName = "Capture preview sections" };
+                var imageTab = new TabPage("Captured image") { BackColor = field };
+                var detailTab = new TabPage("Recognition details") { BackColor = field, Padding = new Padding(8) };
+                imageTab.Controls.Add(picture);
+                var details = new ThemedTextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
+                    ScrollBars = ScrollBars.Vertical, WordWrap = true, Text = CaptureDiagnosticText(message),
+                    BackColor = field, ForeColor = ink, BorderStyle = BorderStyle.None,
+                    Name = "CaptureRecognitionDetails", AccessibleName = "Capture and unverified OCR diagnostics" };
+                detailTab.Controls.Add(details);
+                tabs.TabPages.Add(imageTab); tabs.TabPages.Add(detailTab);
+                Label explanation = new Label { Dock = DockStyle.Bottom, Height = 128, Padding = new Padding(14), ForeColor = muted,
                     Text = "This is the image supplied to screen recognition (" + Value(message, "width") + " × " + Value(message, "height") + ").\n" +
                     (Value(message, "source") == "application" ? "Only the selected application is captured. Keep it restored and rendering. This is its PC view, not a direct headset feed." :
-                    "Display capture reads visible desktop pixels. Choose Application window to read a restored app behind the dashboard on one monitor.") +
-                    "\nA preview is one frame; reopen it to refresh. No screenshot is saved." };
-                preview.Controls.Add(picture);
+                    "Manual capture briefly clears overlapping LiveTranslate windows. Watching keeps the dashboard visible; minimize it or choose Application window if it covers the text.") +
+                    "\nOne frame only; reopen to refresh. Recognition details shows unverified OCR. No screenshot is saved." };
+                preview.Controls.Add(tabs);
                 preview.Controls.Add(explanation);
                 preview.FormClosed += delegate { picture.Image = null; frame.Dispose(); if (capturePreview == preview) capturePreview = null; };
                 WindowTheme.Apply(preview);
@@ -190,6 +215,22 @@ namespace LiveTranslate
                 SetStatus("Captured view opened. Check that the expected foreign text is visible and large enough.");
             }
             catch (Exception e) { SetStatus("Could not show capture preview: " + e.GetBaseException().Message); }
+        }
+
+        private static string CaptureDiagnosticText(Dictionary<string, object> message)
+        {
+            object value;
+            var details = message.TryGetValue("diagnostics", out value) ? value as Dictionary<string, object> : null;
+            details = details ?? new Dictionary<string, object>();
+            return "Capture: " + Value(message, "source") + " · " + Value(message, "width") + " × " + Value(message, "height") +
+                "\r\nArea covered by LiveTranslate: " + (Value(details, "masked_percent") == "" ? "unknown" : Value(details, "masked_percent") + "%") +
+                "\r\nSelected source: " + Value(details, "selected_language") + " · OCR reader: " + Value(details, "ocr_language") +
+                "\r\n\r\nUnverified OCR — diagnostic only, may contain invented or misread characters:\r\n" +
+                (Value(details, "raw_ocr") == "" ? "(No raw text returned.)" : Value(details, "raw_ocr")) +
+                "\r\n\r\nAccepted source after recognition safeguards:\r\n" +
+                (Value(details, "accepted_ocr") == "" ? "(No supported foreign text confirmed.)" : Value(details, "accepted_ocr")) +
+                (Value(details, "recognition_error") == "" ? "" : "\r\n\r\nRecognition error:\r\n" + Value(details, "recognition_error")) +
+                "\r\n\r\nThese diagnostic readings are not added to captions or read aloud.";
         }
     }
 }

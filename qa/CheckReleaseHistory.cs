@@ -28,7 +28,7 @@ internal static class CheckReleaseHistory
             var notes = (TextBox)window.Controls.Find("ReleaseNotes", true)[0];
             var unique = new HashSet<string>();
             var previous = new Version(Int32.MaxValue, 0);
-            Require(versions.SelectedIndex == 0 && versions.Text == "0.8.0", "Expected current release selected");
+            Require(versions.SelectedIndex == 0 && versions.Text == "0.8.1", "Expected current release selected");
             Require(versions.TabStop && notes.TabStop && !String.IsNullOrWhiteSpace(versions.AccessibleName) &&
                     !String.IsNullOrWhiteSpace(notes.AccessibleName), "Missing keyboard or accessibility support");
             for (int i = 0; i < versions.Items.Count; i++)
@@ -42,7 +42,7 @@ internal static class CheckReleaseHistory
                     Require(notes.Text.Contains(change), "Release notes did not refresh for " + item.Version);
                 previous = version;
             }
-            Require(unique.Count == 21 && versions.Text == "0.1", "Incomplete archived release history");
+            Require(unique.Count == 22 && versions.Text == "0.1", "Incomplete archived release history");
             Require(SystemInformation.HighContrast || (window.BackColor.GetBrightness() < .2F && notes.BackColor.GetBrightness() < .2F),
                 "Changelog and read-only notes must use the dark application theme");
             window.ClientSize = new Size(355, 290);
@@ -50,7 +50,7 @@ internal static class CheckReleaseHistory
             Require(notes.Visible && notes.ClientSize.Height > 40 && notes.ScrollBars == ScrollBars.Vertical,
                 "Release notes must remain readable in a small window");
             Require(window.CancelButton != null, "Escape must dismiss changelog");
-            Console.WriteLine("PASS: All 21 release notes from 0.8.0 to 0.1 open offline; ordering, keyboard access, text selection, dark theme and compact layout passed.");
+            Console.WriteLine("PASS: All 22 release notes from 0.8.1 to 0.1 open offline; ordering, keyboard access, text selection, dark theme and compact layout passed.");
         }
     }
 }

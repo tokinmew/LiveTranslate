@@ -13,8 +13,8 @@ using System.Windows.Forms;
 [assembly: System.Reflection.AssemblyTitle("Live Translate")]
 [assembly: System.Reflection.AssemblyProduct("Live Translate")]
 [assembly: System.Reflection.AssemblyDescription("Private live audio, screen, and text translation into English")]
-[assembly: System.Reflection.AssemblyVersion("0.8.0.0")]
-[assembly: System.Reflection.AssemblyFileVersion("0.8.0.0")]
+[assembly: System.Reflection.AssemblyVersion("0.8.1.0")]
+[assembly: System.Reflection.AssemblyFileVersion("0.8.1.0")]
 namespace LiveTranslate
 {
     internal static class Program
@@ -128,7 +128,7 @@ namespace LiveTranslate
         private bool ocrEngineReady, hasOcrStatus, speechModelChosen;
         private string checkedOcrPath = "";
         private const string DialogueInstaller = "Install Korean dialogue.cmd";
-        private enum ComponentSetup { Standard, Quality, KoreanDialogue }
+        private enum ComponentSetup { Standard, Quality, KoreanDialogue, SmallSpeech }
         private readonly Font captionFont = new Font("Segoe UI", 18F, FontStyle.Bold);
         private readonly Font labelFont = new Font("Segoe UI", 8.5F, FontStyle.Bold);
         private readonly Font sourceFont = new Font("Segoe UI", 12F);
@@ -200,6 +200,7 @@ namespace LiveTranslate
             BuildSpokenTab();
             BuildNativeVrTab();
             BuildUi();
+            LoadSpeechModelChoice();
             ResumeLayout(true);
             Load += delegate { FitToDisplay(this); };
             ApplyProfile(false);
@@ -388,6 +389,7 @@ namespace LiveTranslate
             if (updatingToggles)
                 return;
             screenArmed = screenToggle.Checked;
+            ClearCaptureError("screen");
             if (screenArmed)
             {
                 TryStartScreen();
@@ -415,6 +417,7 @@ namespace LiveTranslate
 
         private void RestartAudio()
         {
+            ResetAudioDiagnostics();
             ClearOverlayChannel("audio");
             InvalidateRequests("audio");
             audioSession = NewSession();
@@ -480,6 +483,7 @@ namespace LiveTranslate
         {
             ClearOverlayChannel("audio");
             audioWanted = false;
+            ResetAudioDiagnostics();
             InvalidateRequests("audio");
             audioSession = NewSession();
             SetSwitch(audioToggle, false);
@@ -619,6 +623,8 @@ namespace LiveTranslate
 
         private void ReconfigureScreen()
         {
+            ClearCaptureError("screen");
+            ClearCaptureError("screen_once");
             if (screenWanted)
                 StopScreen();
             else
@@ -648,6 +654,7 @@ namespace LiveTranslate
                 return;
             }
             CancelReadOnce();
+            ClearCaptureError("screen_once");
             onceSession = NewSession();
             oneShotPending = true;
             UpdateControls();
@@ -939,6 +946,7 @@ namespace LiveTranslate
 
             if ((session != "" || type == "capture_state" || type == "audio" || type == "screen" || type == "screen_once" || type == "screen_clear") && !CurrentSession(channel, session))
                 return;
+            if (type == "audio_diagnostic") { HandleAudioDiagnostic(message); return; }
             if (type == "status" && Value(message, "topic") == "korean_dialogue")
             {
                 string state = Value(message, "state");
@@ -953,7 +961,6 @@ namespace LiveTranslate
                 bool firstStatus = !connected;
                 connected = true;
                 failedConnections = 0;
-                bool previouslyHadSmall = speechModels.Contains("small");
                 speechModels.Clear();
                 foreach (object model in Items(message, "speech_models"))
                 {
@@ -961,11 +968,8 @@ namespace LiveTranslate
                     speechModels.Add(name);
                     if (!audioModel.Items.Contains(name)) audioModel.Items.Add(name);
                 }
-                if (!previouslyHadSmall && speechModels.Contains("small") && !speechModelChosen)
-                {
-                    audioModel.SelectedItem = "small";
-                    threads.Value = Math.Min(2, Environment.ProcessorCount);
-                }
+                // Discovering a larger model must not silently switch the
+                // user's recognizer or its CPU settings.
                 ocrModels.Clear();
                 foreach (object model in Items(message, "ocr_languages"))
                     ocrModels.Add(Convert.ToString(model));
@@ -1078,6 +1082,7 @@ namespace LiveTranslate
             else if (type == "capture_state")
             {
                 string state = Value(message, "state"), info = Value(message, "message");
+                if (state == "active" && Flag(message, "sampled")) ClearCaptureError(channel);
                 if (channel == "audio")
                 {
                     audioStateLabel.Text = info != "" ? info : state == "active" ? "Listening. English captions follow each phrase." : state == "starting" ? "Opening audio device / loading model..." : "Audio is off.";
@@ -1107,8 +1112,7 @@ namespace LiveTranslate
                     InvalidateRequests(channel);
                 if (state == "error" && info != "")
                 {
-                    Append("CAPTURE", info);
-                    SetStatus(info);
+                    ReportCaptureError(channel, info);
                 }
 
                 UpdateControls();
@@ -1119,6 +1123,7 @@ namespace LiveTranslate
             }
             else if (type == "audio" || type == "screen" || type == "screen_once" || type == "result")
             {
+                if (type != "result") ClearCaptureError(channel);
                 string audioSource = Value(message, "source");
                 string label = type == "audio" ? (audioSource == "microphone" ? "MICROPHONE" : audioSource == "pc" ? "COMPUTER AUDIO" : "AUDIO")
                     : type == "screen" || type == "screen_once" ? "SCREEN" : "TEXT";
@@ -1370,6 +1375,8 @@ namespace LiveTranslate
             DelayReconnect();
             audioWanted = false;
             screenWanted = false;
+            InvalidateCapturePreview();
+            ResetAudioDiagnostics();
             ClearOverlayChannel("");
             audioSession = NewSession();
             screenSession = NewSession();
@@ -1475,6 +1482,11 @@ namespace LiveTranslate
 
         private static ProcessStartInfo SetupProcessInfo(ComponentSetup setup, string directory)
         {
+            if (setup == ComponentSetup.SmallSpeech)
+                return new ProcessStartInfo(Path.Combine(directory, "runtime", "python.exe"),
+                    "-I -B -X utf8 \"" + Path.Combine(directory, "backend", "install_speech_small.py") + "\"")
+                { WorkingDirectory = directory, UseShellExecute = false, CreateNoWindow = true,
+                    RedirectStandardOutput = true, RedirectStandardError = true };
             bool interactive = setup == ComponentSetup.KoreanDialogue;
             // Keep installation paths out of cmd.exe's command text, including literal percent signs.
             string args = interactive ? "/d /v:off /c call \".\\Install Korean dialogue.cmd\""
@@ -1503,13 +1515,15 @@ namespace LiveTranslate
             }
 
             string batch = interactive ? DialogueInstaller : setup == ComponentSetup.Quality ? "Install quality models.cmd" : "Setup.cmd";
-            string setupFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scripts", batch);
+            string setupFile = setup == ComponentSetup.SmallSpeech ? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "backend", "install_speech_small.py") :
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "scripts", batch);
             if (!File.Exists(setupFile))
             {
                 Append("SETUP", batch + " is missing. Extract the entire ZIP before opening this app.");
                 return;
             }
 
+            bool setupProcessStarted = false;
             try
             {
                 CloseWorker();
@@ -1539,7 +1553,7 @@ namespace LiveTranslate
                             pendingInstallLanguage = null;
                             Append("SETUP ERROR", interactive ? "Korean dialogue setup did not finish. Check its console for details." : "Setup did not finish.\n" + setupTail.Trim());
                             SetStatus(interactive ? "Korean dialogue setup did not finish." : "Setup failed. See its error in captions, then use Settings to retry.");
-                            if (interactive && RuntimeReady())
+                            if ((interactive || setup == ComponentSetup.SmallSpeech) && RuntimeReady())
                                 StartWorker();
                         }
 
@@ -1547,6 +1561,7 @@ namespace LiveTranslate
                     });
                 };
                 installer.Start();
+                setupProcessStarted = true;
                 if (!interactive)
                 {
                     installer.BeginOutputReadLine();
@@ -1560,6 +1575,11 @@ namespace LiveTranslate
             {
                 pendingInstallCommand = null;
                 pendingInstallLanguage = null;
+                if (setup == ComponentSetup.SmallSpeech && !setupProcessStarted)
+                {
+                    if (installer != null) { installer.Dispose(); installer = null; }
+                    if (!closing && RuntimeReady()) StartWorker();
+                }
                 Append("SETUP ERROR", ex.Message);
                 SetStatus(ex.Message);
                 UpdateControls();
@@ -1692,6 +1712,8 @@ namespace LiveTranslate
             devicesReady = false;
             audioWanted = false;
             screenWanted = false;
+            InvalidateCapturePreview();
+            ResetAudioDiagnostics();
             ClearOverlayChannel("");
             audioSession = NewSession();
             screenSession = NewSession();

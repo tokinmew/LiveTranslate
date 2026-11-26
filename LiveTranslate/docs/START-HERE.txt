@@ -1,4 +1,23 @@
-LiveTranslate 0.8.0 for Windows 11 x64
+LiveTranslate 0.8.1 for Windows 11 x64
+
+0.8.1 fixes manual capture when LiveTranslate covers the target. Read once
+and Preview briefly reveal the background text, then restore the dashboard.
+For Watch screen, minimize the dashboard or choose the application target.
+Use text displayed in the browser/game, not LiveTranslate's own input box.
+
+Preview is a direct button. Its Recognition details tab shows unverified OCR
+and accepted source text separately. These are diagnostics, not captions.
+Whole-scene icon safeguards also apply to explicitly selected Asian languages.
+Repeated identical text flaps no longer flood the transcript.
+
+Audio setup now shows measured input level and recognition decisions. Base
+stays the default; the checked Small-only model download is optional, and Use
+Small selects it explicitly. Model choice is remembered. Larger is not a
+guarantee of better accuracy and can be slower on CPU.
+
+VR captions now includes background opacity and per-connection saved layouts.
+0% makes the background transparent; text stays opaque. Connection profiles
+require SteamVR. OpenXR/VDXR and standalone overlay support remain unavailable.
 
 This feature update adds native SteamVR captions, application capture and a
 capture preview. Screen reading reports missing pixels or unconfirmed text.

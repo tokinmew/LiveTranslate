@@ -46,7 +46,7 @@ Run-Check 'VrCardControlsChecks' $out
 Compile 'NativeVrOverlayChecks' (@('/target:exe','/main:NativeVrOverlayChecks',
                                   (Join-Path $PSScriptRoot 'overlays/NativeVrOverlayChecks.cs')) + $sources)
 Run-Check 'NativeVrOverlayChecks' $out
-foreach ($name in @('ThemedInputChecks','QuietChromeChecks','QuietThemeCheck','CaptureTargetMenuCheck','ApplicationCaptureCheck','UiFlowCheck')) {
+foreach ($name in @('ThemedInputChecks','QuietChromeChecks','QuietThemeCheck','CaptureTargetMenuCheck','ApplicationCaptureCheck','Patch081ControlsCheck','UiFlowCheck')) {
     Compile $name (@('/target:exe',('/main:' + $name),(Join-Path $PSScriptRoot ('ui/' + $name + '.cs'))) + $sources)
     Run-Check $name $out
 }

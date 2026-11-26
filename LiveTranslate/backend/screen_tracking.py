@@ -188,3 +188,36 @@ class ScreenTracker:
             if len(current) < 32:
                 current[box] = key, samples.get(box), rows[box], box in held
         self.previous = current
+
+
+class ScreenCaptionHistory:
+    """Avoid a new transcript row when the same screen text briefly vanishes.
+
+    This does not approve OCR or suppress display updates. A caller still clears
+    the live overlay on a missing frame and restores it immediately on return.
+    The memory belongs to one watch request, so switching target or language
+    cannot inherit old results. Only the latest accepted caption is retained,
+    and it expires after a genuine quiet interval. A different accepted caption
+    makes an earlier passage a new occurrence if it returns.
+    """
+    def __init__(self, quiet_seconds=30.0):
+        self.quiet_seconds = quiet_seconds
+        self.previous = None
+        self.last_seen = None
+
+    def observe(self, segments, translated, now):
+        """Return whether this accepted source/translation merits a new row."""
+        if not isinstance(translated, str) or not translated.strip():
+            return False
+        source = tuple(sorted(set(_identity(key) for key in segments)))
+        english = " ".join(unicodedata.normalize("NFC", translated).split())
+        # Do not retain very large passages merely to reduce transcript noise.
+        if not source or len(english) + sum(len(text) for _, text in source) > 8192:
+            self.previous = None
+            self.last_seen = now
+            return True
+        key = source, english
+        fresh = key != self.previous or self.last_seen is None or now - self.last_seen >= self.quiet_seconds
+        self.previous = key
+        self.last_seen = now
+        return fresh

@@ -3,7 +3,7 @@ import unittest
 from collections import OrderedDict
 from PIL import Image, ImageChops, ImageDraw
 from screen_geometry import LocatedText
-from screen_tracking import ScreenTracker, sample_frame
+from screen_tracking import ScreenCaptionHistory, ScreenTracker, sample_frame
 
 
 BOX = (18, 10, 70, 32)
@@ -152,3 +152,59 @@ class ScreenTrackingTests(unittest.TestCase):
         cache = OrderedDict([(key, {"text":"Settings", "language":"ja"})])
         _, result = worker._translate_segments((key,), "ja", cache=cache, placements=((key,BOX),))
         self.assertEqual("Settings",result["regions"][0]["text"])
+
+
+class ScreenCaptionHistoryTests(unittest.TestCase):
+    def test_brief_disappearance_does_not_create_another_transcript_row(self):
+        history = ScreenCaptionHistory()
+        source = (("ja", "ホーム"),)
+        self.assertTrue(history.observe(source, "Home", 0))
+        self.assertFalse(history.observe((), "", .5))
+        self.assertFalse(history.observe(source, "Home", 1))
+
+    def test_continuing_reappearance_is_quiet_until_a_real_absence(self):
+        history = ScreenCaptionHistory()
+        source = (("ko", "홈"),)
+        self.assertTrue(history.observe(source, "Home", 0))
+        for now in range(1, 100):
+            self.assertFalse(history.observe(source, "Home", now))
+        self.assertTrue(history.observe(source, "Home", 130))
+
+    def test_genuine_home_signs_are_accepted_and_distinct_sources_are_not_banned(self):
+        history = ScreenCaptionHistory()
+        for source in (("ja", "ホーム"), ("zh", "家"), ("ko", "홈")):
+            self.assertTrue(history.observe((source,), "Home", 0))
+
+    def test_different_translation_or_meaning_is_a_new_transcript_row(self):
+        history = ScreenCaptionHistory()
+        self.assertTrue(history.observe((("ja", "次は家"),), "Next is home", 0))
+        self.assertTrue(history.observe((("ja", "次は家"),), "Home is next", 1))
+        self.assertTrue(history.observe((("ja", "次は駅"),), "Next is the station", 2))
+        self.assertTrue(history.observe((("ja", "次は家？"),), "Next is home?", 3))
+
+    def test_physical_order_and_width_spacing_variants_do_not_repeat_the_same_caption(self):
+        history = ScreenCaptionHistory()
+        self.assertTrue(history.observe((("ja", "設 定"), ("ja", "次へ！")), "Settings\nNext!", 0))
+        self.assertFalse(history.observe((("ja", "次へ!"), ("ja", "設定")), "Settings  Next!", 1))
+        self.assertTrue(history.observe((("ja", "次へ？"), ("ja", "設定")), "Settings Next?", 2))
+
+    def test_new_watch_has_no_previous_target_or_language_history(self):
+        source = (("ja", "ホーム"),)
+        first, second = ScreenCaptionHistory(), ScreenCaptionHistory()
+        self.assertTrue(first.observe(source, "Home", 0))
+        self.assertTrue(second.observe(source, "Home", 1))
+
+    def test_genuine_content_change_then_return_creates_a_new_occurrence(self):
+        history = ScreenCaptionHistory()
+        home, settings = (("ja", "ホーム"),), (("ja", "設定"),)
+        self.assertTrue(history.observe(home, "Home", 0))
+        self.assertTrue(history.observe(settings, "Settings", 1))
+        self.assertTrue(history.observe(home, "Home", 2))
+        self.assertFalse(history.observe(home, "Home", 3))
+
+    def test_large_passage_is_not_retained_and_short_following_caption_still_works(self):
+        history = ScreenCaptionHistory()
+        home = (("ja", "ホーム"),)
+        self.assertTrue(history.observe(home, "Home", 0))
+        self.assertTrue(history.observe((("ja", "長文" * 5000),), "Long text", 0))
+        self.assertTrue(history.observe(home, "Home", 1))

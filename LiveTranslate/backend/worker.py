@@ -10,7 +10,7 @@ import threading
 import time
 import math
 from collections import OrderedDict
-from contextlib import contextmanager, ExitStack
+from contextlib import contextmanager, ExitStack, nullcontext
 from dataclasses import dataclass, field
 
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
@@ -213,8 +213,11 @@ class Worker:
         elif command == "devices":
             reply.update(type="devices", devices=self.audio.devices())
         elif command == "preview_screen":
-            reply.update(type="screen_preview", **self.screen.preview(
-                item.get("region", {"monitor": "primary"}), item.get("exclude_windows", ())))
+            with self.screen_work_lock:
+                reply.update(type="screen_preview", **self.screen.preview(
+                    item.get("region", {"monitor": "primary"}), item.get("exclude_windows", ()),
+                    language=str(item.get("ocr_language", "auto")), executable=str(item.get("tesseract_path", "")),
+                    source=str(item.get("source", "auto"))))
         elif command == "catalog":
             from profiles import PROFILES
             languages = [{"code": p.code, "name": p.name} for p in PROFILES if p.code in CHECKED_TEXT_CODES]
@@ -474,7 +477,9 @@ class Worker:
             else:
                 if request.source not in PRIORITY and request.source != "auto":
                     options["source"] = request.source
-                original = self.screen.recognize(request.region, request.language, request.executable, **options)
+                manual = getattr(self.screen, "manual_capture", None)
+                with manual() if manual is not None else nullcontext():
+                    original = self.screen.recognize(request.region, request.language, request.executable, **options)
         finally:
             self.screen_work_lock.release()
         if not self._screen_current_request(request):
@@ -702,8 +707,9 @@ class Worker:
             failed = False
             resources = ExitStack()
             try:
-                from screen_tracking import ScreenTracker
+                from screen_tracking import ScreenCaptionHistory, ScreenTracker
                 tracker = ScreenTracker()
+                caption_history = ScreenCaptionHistory()
                 model_scope = getattr(self.screen, "watch_models", None)
                 if model_scope:
                     resources.enter_context(model_scope())
@@ -730,9 +736,10 @@ class Worker:
                                                                     glyph_covers=covers)
                         tracker.accept(placements, result, samples, held)
                         if result["text"]:
+                            fresh_caption = caption_history.observe(segments, result["text"], time.monotonic())
                             if not displayed or result != last_result or segments != last:
                                 self._screen_event(request, {"type": "screen", "original": filtered,
-                                                    "layout_only": displayed and segments == last, **result})
+                                                    "layout_only": not fresh_caption, **result})
                             displayed = True
                         elif displayed:
                             self._screen_event(request, {"type": "screen_clear"})
@@ -744,11 +751,18 @@ class Worker:
                         last_held = set(held)
                     else:
                         tracker.accept(placements, last_result, samples, held)
+                        if displayed:
+                            caption_history.observe(last, last_result.get("text", ""), time.monotonic())
                     scan_status = ("Text recognized and translated." if displayed else
                                    "Text recognized, but no translation accepted. Check the selected language and language files." if placements else
                                    "Scanning. No supported foreign text confirmed. Preview captured view to check the source and text size.")
+                    capture_info = getattr(original, "capture_info", {})
+                    covered = capture_info.get("masked_percent", 0) if isinstance(capture_info, dict) else 0
+                    if not displayed and covered > 0:
+                        scan_status = ("No confirmed foreign text. LiveTranslate covers " + str(round(covered)) +
+                                       "% of this capture; minimize the dashboard or choose Application window.")
                     if scan_status != last_scan_status:
-                        self._screen_event(request, {"type": "capture_state", "state": "active", "message": scan_status})
+                        self._screen_event(request, {"type": "capture_state", "state": "active", "sampled": True, "message": scan_status})
                         last_scan_status = scan_status
                     elapsed = time.monotonic() - scan_start
                     # The requested interval is start-to-start. An expensive

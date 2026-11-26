@@ -458,7 +458,7 @@ namespace LiveTranslate
                 if (koreanDialogue.SelectedIndex == 1)
                     audioModel.SelectedItem = "small";
             };
-            audioModel.SelectionChangeCommitted += delegate { speechModelChosen = true; };
+            audioModel.SelectionChangeCommitted += delegate { RememberSpeechModelChoice(); };
             audioModel.SelectedIndexChanged += delegate
             {
                 if (koreanDialogue.SelectedIndex == 1 && !Object.Equals(audioModel.SelectedItem, "small"))

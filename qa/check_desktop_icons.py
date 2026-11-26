@@ -6,7 +6,7 @@ are used. Output is JSON lines on stdout; no report or image files are written.
 """
 import argparse
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 import os
 from pathlib import Path
@@ -235,6 +235,7 @@ def main():
     parser.add_argument("--helper", type=Path, default=Path(os.environ.get("LIVETRANSLATE_TEST_HELPER", app / "ocr-tools/EnglishOcr.exe")))
     parser.add_argument("--only", help="Comma-separated fixture names or shortlabels; by default run the 12 authored UI cases")
     parser.add_argument("--trace", action="store_true", help="Print target-script OCR word boxes/confidence for authored images")
+    parser.add_argument("--all-cjk-profiles", action="store_true", help="Check every no-text UI scene under Auto and all four selected CJK profiles")
     parser.add_argument("--without-english-guard", action="store_true", help="Exercise the independent CJK fallback with Windows English OCR unavailable")
     args = parser.parse_args()
     if (not args.data.joinpath("tessdata").is_dir() or
@@ -256,6 +257,16 @@ def main():
         if english is None or len(english) < 2:
             parser.error("The independent Windows English OCR helper is unavailable; use --without-english-guard to explicitly test that fallback.")
     all_cases = cases()
+    if args.all_cjk_profiles:
+        expanded = []
+        profiles = (("auto", "auto"), ("ja", "jpn"), ("ko", "kor"), ("zh", "chi_sim"), ("zt", "chi_tra"))
+        for case in all_cases:
+            if case.expected:
+                expanded.append(case)
+            else:
+                expanded.extend(replace(case, name=case.name + ":" + profile, profile=profile,
+                                        language=language, optional=False) for profile, language in profiles)
+        all_cases = expanded
     wanted = set(args.only.split(",")) if args.only else {case.name for case in all_cases if not case.optional}
     if "shortlabels" in wanted:
         wanted.remove("shortlabels")
@@ -265,6 +276,7 @@ def main():
         parser.error("Unknown authored fixture: " + ", ".join(sorted(unknown)))
     print(json.dumps(dict(fixture_set="authored_desktop_icons", backend=str(args.backend.resolve()),
                           automatic_ocr=engine.auto_language(), english_guard_available=not args.without_english_guard,
+                          selected_profile_negatives=args.all_cjk_profiles,
                           without_english_guard=args.without_english_guard)), flush=True)
     failures = 0
     started = time.monotonic()
